@@ -37,19 +37,25 @@ export async function POST() {
       workspaceUuid: workspaceUuid,
     })
     
+    console.log('🔄 Fetching accounts from OnlySocial...')
+    
     // Ottieni gli account da OnlySocial
     const response = await onlySocialAPI.listAccounts() as { 
       data?: Array<{ 
-        id: string
+        id: number
+        uuid: string
         name: string
-        platform: string
+        provider: string
         username?: string
+        image?: string
       }> 
     }
 
-    if (!response.data) {
+    console.log('📥 Response from OnlySocial:', JSON.stringify(response, null, 2))
+
+    if (!response.data || response.data.length === 0) {
       return NextResponse.json(
-        { error: 'Nessun account trovato' },
+        { error: 'Nessun account trovato su OnlySocial' },
         { status: 404 }
       )
     }
@@ -60,15 +66,15 @@ export async function POST() {
     // Sincronizza ogni account nel database
     for (const account of accounts) {
       const synced = await prisma.socialAccount.upsert({
-        where: { accountId: account.id },
+        where: { accountId: account.uuid },
         update: {
           accountName: account.username || account.name,
-          platform: account.platform,
+          platform: account.provider,
         },
         create: {
-          accountId: account.id,
+          accountId: account.uuid,
           accountName: account.username || account.name,
-          platform: account.platform,
+          platform: account.provider,
         },
       })
       syncedAccounts.push(synced)
@@ -79,9 +85,13 @@ export async function POST() {
       accounts: syncedAccounts,
     })
   } catch (error) {
-    console.error('Errore sincronizzazione account:', error)
+    console.error('❌ Errore sincronizzazione account:', error)
+    console.error('Error details:', error instanceof Error ? error.message : String(error))
     return NextResponse.json(
-      { error: 'Errore sincronizzazione' },
+      { 
+        error: 'Errore sincronizzazione',
+        details: error instanceof Error ? error.message : String(error)
+      },
       { status: 500 }
     )
   }
