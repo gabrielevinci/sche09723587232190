@@ -28,7 +28,7 @@ interface SocialAccount {
 }
 
 export default function AdminPage() {
-  const { data: session, status } = useSession()
+  const { status } = useSession()
   const router = useRouter()
   
   const [users, setUsers] = useState<User[]>([])

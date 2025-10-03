@@ -113,7 +113,7 @@ export class DOSpacesAPI {
 
       await this.client.send(command)
       return true
-    } catch (_error) {
+    } catch {
       return false
     }
   }
