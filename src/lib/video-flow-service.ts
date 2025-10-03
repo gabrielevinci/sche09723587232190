@@ -6,7 +6,6 @@
 
 import { OnlySocialAPI } from './onlysocial-api'
 import { DOSpacesAPI } from './digitalocean-spaces'
-import { prisma } from './prisma'
 
 interface VideoFlowConfig {
   onlySocial: {
@@ -60,8 +59,7 @@ export class VideoFlowService {
       console.log('🧹 Avvio pulizia video pubblicati da OnlySocial...')
       
       // 1. Ottieni i post pubblicati di recente
-      const posts = await this.onlySocialAPI.listPosts()
-      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000)
+      const posts = await this.onlySocialAPI.listPosts() as { data?: Array<{ status: string; published_at: string; media?: Array<{ id: number; size?: number }> }> }
       
       let deletedCount = 0
       let freedSpace = 0
@@ -71,7 +69,7 @@ export class VideoFlowService {
         // Nota: dovremmo controllare lo status e la data di pubblicazione effettiva
         // Questa è una implementazione semplificata
         
-        if (post.status === 'published' && new Date(post.published_at) < oneHourAgo) {
+        if (post.status === 'published' && new Date(post.published_at) < new Date(Date.now() - 60 * 60 * 1000)) {
           // 3. Elimina i media associati da OnlySocial
           if (post.media && post.media.length > 0) {
             for (const media of post.media) {
@@ -107,14 +105,13 @@ export class VideoFlowService {
     try {
       console.log('📤 Avvio caricamento video per le prossime 2 ore...')
       
-      const twoHoursFromNow = new Date(Date.now() + 2 * 60 * 60 * 1000)
       let uploadedCount = 0
       let totalSize = 0
 
       // 1. Trova i video programmati per le prossime 2 ore che non sono ancora su OnlySocial
       // Nota: qui dovresti interrogare il tuo database per i video programmati
       
-      const upcomingVideos = await this.getUpcomingScheduledVideos(twoHoursFromNow)
+      const upcomingVideos = await this.getUpcomingScheduledVideos()
       
       for (const video of upcomingVideos) {
         try {
@@ -125,7 +122,7 @@ export class VideoFlowService {
           const uploadResult = await this.onlySocialAPI.uploadMedia({
             file: videoData.toString('base64'), // OnlySocial potrebbe richiedere base64
             alt_text: video.filename
-          })
+          }) as { id: string }
 
           // 4. Aggiorna il record nel database
           await this.updateVideoStatus(video.id, 'uploaded_to_onlysocial', uploadResult.id)
@@ -188,7 +185,7 @@ export class VideoFlowService {
   async uploadVideoToDO(
     file: Buffer,
     filename: string,
-    scheduledFor?: Date
+    _scheduledFor?: Date
   ): Promise<string> {
     try {
       const videoUrl = await this.doSpacesAPI.uploadVideo(file, filename)
@@ -206,7 +203,7 @@ export class VideoFlowService {
 
   // ==================== HELPER METHODS ====================
 
-  private async getUpcomingScheduledVideos(beforeDate: Date): Promise<VideoFile[]> {
+  private async getUpcomingScheduledVideos(_beforeDate?: Date): Promise<VideoFile[]> {
     // Implementazione semplificata - dovrebbe interrogare il database
     // return await prisma.videoFile.findMany({
     //   where: {
@@ -221,16 +218,16 @@ export class VideoFlowService {
     return [] // Placeholder
   }
 
-  private async downloadVideoFromDO(key: string): Promise<Buffer> {
+  private async downloadVideoFromDO(_key: string): Promise<Buffer> {
     // Implementazione per scaricare il video da DigitalOcean
     // Dovrebbe usare il client S3 per ottenere l'oggetto
     throw new Error('downloadVideoFromDO not implemented')
   }
 
   private async updateVideoStatus(
-    id: string, 
-    status: VideoFile['status'], 
-    onlySocialMediaId?: string
+    _id: string, 
+    _status: VideoFile['status'], 
+    _onlySocialMediaId?: string
   ): Promise<void> {
     // Implementazione per aggiornare lo status nel database
     // await prisma.videoFile.update({
@@ -243,7 +240,7 @@ export class VideoFlowService {
     // Dovrebbe calcolare l'uso attuale dello spazio OnlySocial
     // Interrogando l'API per tutti i media files e sommando le dimensioni
     try {
-      const media = await this.onlySocialAPI.listMedia()
+      const media = await this.onlySocialAPI.listMedia() as { data?: Array<{ size?: number }> }
       let totalSize = 0
       
       for (const item of media.data || []) {

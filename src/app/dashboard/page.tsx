@@ -84,7 +84,7 @@ export default function DashboardPage() {
                       Un amministratore deve assegnarti gli account social prima che tu possa accedere alle funzionalità della piattaforma.
                     </p>
                     <p className="mt-2">
-                      Ti preghiamo di contattare l'amministratore per completare l'attivazione del tuo account.
+                      Ti preghiamo di contattare l&apos;amministratore per completare l&apos;attivazione del tuo account.
                     </p>
                   </div>
                 </div>
@@ -128,7 +128,7 @@ export default function DashboardPage() {
                       </div>
                       <h3 className="text-lg font-medium text-gray-900 mb-2">Carica</h3>
                       <p className="text-sm text-gray-600">
-                        Gestisci l'upload dei tuoi contenuti multimediali
+                        Gestisci l&apos;upload dei tuoi contenuti multimediali
                       </p>
                       <span className="inline-block mt-2 px-2 py-1 text-xs bg-gray-200 text-gray-600 rounded">
                         Prossimamente
@@ -146,7 +146,7 @@ export default function DashboardPage() {
                       </div>
                       <h3 className="text-lg font-medium text-gray-900 mb-2">Schedula</h3>
                       <p className="text-sm text-gray-600">
-                        Programma i tuoi post per massimizzare l'engagement
+                        Programma i tuoi post per massimizzare l&apos;engagement
                       </p>
                       <span className="inline-block mt-2 px-2 py-1 text-xs bg-gray-200 text-gray-600 rounded">
                         Prossimamente

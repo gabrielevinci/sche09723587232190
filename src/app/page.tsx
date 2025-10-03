@@ -80,7 +80,7 @@ export default function Home() {
             </div>
             <h3 className="text-xl font-semibold text-gray-900 mb-2">Carica</h3>
             <p className="text-gray-600">
-              Gestisci l'upload dei tuoi contenuti multimediali in modo sicuro e organizzato.
+              Gestisci l&apos;upload dei tuoi contenuti multimediali in modo sicuro e organizzato.
             </p>
           </div>
 
@@ -92,7 +92,7 @@ export default function Home() {
             </div>
             <h3 className="text-xl font-semibold text-gray-900 mb-2">Schedula</h3>
             <p className="text-gray-600">
-              Programma i tuoi post con precisione per massimizzare l'engagement del tuo pubblico.
+              Programma i tuoi post con precisione per massimizzare l&apos;engagement del tuo pubblico.
             </p>
           </div>
         </div>

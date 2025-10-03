@@ -1,9 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { VideoFlowService } from '@/lib/video-flow-service'
 
-export async function POST(request: NextRequest) {
+export async function POST() {
   try {
     // Verifica autenticazione admin (dovresti implementare un controllo per admin)
     const session = await getServerSession(authOptions)

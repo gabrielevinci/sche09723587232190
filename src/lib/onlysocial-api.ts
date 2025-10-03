@@ -16,7 +16,7 @@ interface MediaFile {
 
 interface PostContent {
   body: string
-  media: any[]
+  media: string[]
   url: string
 }
 
@@ -24,13 +24,13 @@ interface PostVersion {
   account_id: number
   is_original: boolean
   content: PostContent[]
-  options: Record<string, any>
+  options: Record<string, unknown>
 }
 
 interface CreatePostData {
-  accounts: any[]
+  accounts: number[]
   versions: PostVersion[]
-  tags: any[]
+  tags: string[]
   date: string | null
   time: string
   until_date: string | null
@@ -63,8 +63,8 @@ export class OnlySocialAPI {
   private async makeRequest(
     endpoint: string, 
     method: string = 'GET', 
-    body?: any
-  ): Promise<any> {
+    body?: unknown
+  ): Promise<unknown> {
     const url = `${this.baseUrl}/${this.config.workspaceUuid}${endpoint}`
     
     const options: RequestInit = {
@@ -97,14 +97,14 @@ export class OnlySocialAPI {
   /**
    * List all accounts in the workspace
    */
-  async listAccounts(): Promise<any> {
+  async listAccounts(): Promise<unknown> {
     return this.makeRequest('/accounts')
   }
 
   /**
    * Get a specific account
    */
-  async getAccount(accountUuid: string): Promise<any> {
+  async getAccount(accountUuid: string): Promise<unknown> {
     return this.makeRequest(`/accounts/${accountUuid}`)
   }
 
@@ -113,28 +113,28 @@ export class OnlySocialAPI {
   /**
    * List media files with pagination
    */
-  async listMedia(page: number = 1): Promise<any> {
+  async listMedia(page: number = 1): Promise<unknown> {
     return this.makeRequest(`/media?page=${page}`)
   }
 
   /**
    * Get a specific media file
    */
-  async getMedia(mediaUuid: string): Promise<any> {
+  async getMedia(mediaUuid: string): Promise<unknown> {
     return this.makeRequest(`/media/${mediaUuid}`)
   }
 
   /**
    * Upload a media file
    */
-  async uploadMedia(mediaData: MediaFile): Promise<any> {
+  async uploadMedia(mediaData: MediaFile): Promise<unknown> {
     return this.makeRequest('/media/', 'POST', mediaData)
   }
 
   /**
    * Delete media files (multiple items)
    */
-  async deleteMedia(itemIds: number[]): Promise<any> {
+  async deleteMedia(itemIds: number[]): Promise<unknown> {
     const itemsParam = itemIds.join(',')
     return this.makeRequest(`/media?items=${itemsParam}`, 'DELETE')
   }
@@ -144,42 +144,42 @@ export class OnlySocialAPI {
   /**
    * List posts with pagination
    */
-  async listPosts(page: number = 1): Promise<any> {
+  async listPosts(page: number = 1): Promise<unknown> {
     return this.makeRequest(`/posts?page=${page}`)
   }
 
   /**
    * Get a specific post
    */
-  async getPost(postUuid: string): Promise<any> {
+  async getPost(postUuid: string): Promise<unknown> {
     return this.makeRequest(`/posts/${postUuid}`)
   }
 
   /**
    * Create a new post
    */
-  async createPost(postData: CreatePostData): Promise<any> {
+  async createPost(postData: CreatePostData): Promise<unknown> {
     return this.makeRequest('/posts', 'POST', postData)
   }
 
   /**
    * Delete a single post
    */
-  async deletePost(postUuid: string, trash: boolean = false): Promise<any> {
+  async deletePost(postUuid: string, trash: boolean = false): Promise<unknown> {
     return this.makeRequest(`/posts/${postUuid}`, 'DELETE', { trash })
   }
 
   /**
    * Delete multiple posts
    */
-  async deletePosts(postUuids: string[], trash: boolean = false): Promise<any> {
+  async deletePosts(postUuids: string[], trash: boolean = false): Promise<unknown> {
     return this.makeRequest('/posts', 'DELETE', { posts: postUuids, trash })
   }
 
   /**
    * Schedule a post for publishing
    */
-  async schedulePost(postUuid: string, scheduleData: SchedulePostData): Promise<any> {
+  async schedulePost(postUuid: string, scheduleData: SchedulePostData): Promise<unknown> {
     return this.makeRequest(`/posts/schedule/${postUuid}`, 'POST', scheduleData)
   }
 
@@ -193,7 +193,7 @@ export class OnlySocialAPI {
     content: string,
     scheduleDate?: string,
     scheduleTime?: string
-  ): Promise<any> {
+  ): Promise<unknown> {
     const postData: CreatePostData = {
       accounts: accountIds,
       versions: [
@@ -226,16 +226,15 @@ export class OnlySocialAPI {
   /**
    * Helper method to publish a post immediately
    */
-  async publishPostNow(postUuid: string): Promise<any> {
+  async publishPostNow(postUuid: string): Promise<unknown> {
     return this.schedulePost(postUuid, { postNow: true })
   }
 
   /**
    * Helper method to get posts published in the last hour
    */
-  async getRecentlyPublishedPosts(): Promise<any[]> {
-    const posts = await this.listPosts()
-    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000)
+  async getRecentlyPublishedPosts(): Promise<unknown[]> {
+    const posts = await this.listPosts() as { data?: unknown[] }
     
     // Nota: questa è una implementazione semplificata
     // In realtà dovremmo filtrare i post in base al loro status e data di pubblicazione
@@ -245,9 +244,8 @@ export class OnlySocialAPI {
   /**
    * Helper method to get posts scheduled for next 2 hours
    */
-  async getUpcomingPosts(): Promise<any[]> {
-    const posts = await this.listPosts()
-    const twoHoursFromNow = new Date(Date.now() + 2 * 60 * 60 * 1000)
+  async getUpcomingPosts(): Promise<unknown[]> {
+    const posts = await this.listPosts() as { data?: unknown[] }
     
     // Nota: questa è una implementazione semplificata
     // In realtà dovremmo filtrare i post in base al loro status e data programmata

@@ -78,7 +78,7 @@ export class DOSpacesAPI {
   /**
    * List files in DigitalOcean Spaces
    */
-  async listFiles(prefix?: string, maxKeys?: number): Promise<any[]> {
+  async listFiles(prefix?: string, maxKeys?: number): Promise<Array<Record<string, unknown>>> {
     try {
       const command = new ListObjectsV2Command({
         Bucket: this.bucket,
@@ -87,10 +87,10 @@ export class DOSpacesAPI {
       })
 
       const response = await this.client.send(command)
-      return response.Contents || []
-    } catch (error) {
-      console.error('Error listing files from DO Spaces:', error)
-      throw error
+      return (response.Contents || []) as Array<Record<string, unknown>>
+    } catch {
+      console.error('Error listing files from DO Spaces')
+      throw new Error('Failed to list files from DigitalOcean Spaces')
     }
   }
 
@@ -113,7 +113,7 @@ export class DOSpacesAPI {
 
       await this.client.send(command)
       return true
-    } catch (error) {
+    } catch (_error) {
       return false
     }
   }

@@ -66,7 +66,7 @@ export default function SignupPage() {
       } else {
         setError(data.error)
       }
-    } catch (error) {
+    } catch {
       setError('Si è verificato un errore durante la registrazione')
     } finally {
       setIsLoading(false)

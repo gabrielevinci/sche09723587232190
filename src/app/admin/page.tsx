@@ -95,7 +95,7 @@ export default function AdminPage() {
       setMessage('Account social assegnato con successo!')
       setSelectedUser('')
       setSelectedAccount('')
-    } catch (error) {
+    } catch {
       setMessage('Errore nell\'assegnazione dell\'account')
     } finally {
       setIsLoading(false)

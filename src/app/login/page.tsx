@@ -29,7 +29,7 @@ export default function LoginPage() {
       } else {
         router.push('/dashboard')
       }
-    } catch (error) {
+    } catch {
       setError('Si è verificato un errore durante il login')
     } finally {
       setIsLoading(false)
