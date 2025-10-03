@@ -1,13 +1,33 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Social Media Scheduler - 0Chiacchiere
 
-## Getting Started
+Una piattaforma professionale per gestire il flusso di contenuti social tra OnlySocial e DigitalOcean Spaces.
 
-First, run the development server:
+## 🎯 Obiettivo del Progetto
+
+Questo sistema gestisce automaticamente il flusso di video tra l'API di OnlySocial e DigitalOcean Spaces per ottimizzare l'uso dei 20GB di storage di OnlySocial, mantenendo solo i video necessari per le prossime 6 ore.
+
+## 🏗️ Architettura
+
+- **Frontend**: Next.js 14 con TypeScript e Tailwind CSS
+- **Backend**: API Routes di Next.js
+- **Database**: PostgreSQL (NeonDB) con Prisma ORM
+- **Autenticazione**: NextAuth.js con hash bcrypt
+- **Storage**: DigitalOcean Spaces (illimitato)
+- **Social Management**: OnlySocial API (20GB limitati)
+
+## 🚀 Getting Started
+
+### Installazione
 
 ```bash
+# Installa le dipendenze
+npm install
+
+# Configura le variabili di ambiente
+cp .env.local.example .env.local
+
+# Avvia il server di sviluppo
 npm run dev
-# or
-yarn dev
 # or
 pnpm dev
 # or
