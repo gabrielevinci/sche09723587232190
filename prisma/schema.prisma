@@ -1,0 +1,59 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String             @id @default(cuid())
+  name              String
+  email             String             @unique
+  password          String
+  isActive          Boolean            @default(false)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  socialAccounts    SocialAccount[]
+  adminAssociations AdminAssociation[]
+
+  @@map("users")
+}
+
+model SocialAccount {
+  id           String @id @default(cuid())
+  platform     String // instagram, facebook, twitter, etc.
+  accountName  String
+  accountId    String // ID from OnlySocial platform
+  isActive     Boolean @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  // Relations
+  userId       String?
+  user         User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+  
+  adminAssociations AdminAssociation[]
+
+  @@map("social_accounts")
+}
+
+model AdminAssociation {
+  id              String        @id @default(cuid())
+  userId          String
+  socialAccountId String
+  assignedAt      DateTime      @default(now())
+  assignedBy      String        // Admin user ID who made the association
+  isActive        Boolean       @default(true)
+  
+  // Relations
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  socialAccount   SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, socialAccountId])
+  @@map("admin_associations")
+}
