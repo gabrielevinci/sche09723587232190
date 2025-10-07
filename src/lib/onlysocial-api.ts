@@ -10,14 +10,14 @@ interface OnlySocialConfig {
 }
 
 interface MediaFile {
-  file: string
-  alt_text: string
+  file: string // URL del file
+  alt_text?: string
 }
 
 interface PostContent {
   body: string
-  media: string[]
-  url: string
+  media: string[] // Array di URL dei media
+  url?: string
 }
 
 interface PostVersion {
@@ -186,33 +186,35 @@ export class OnlySocialAPI {
   // ==================== HELPER METHODS ====================
 
   /**
-   * Helper method to create a simple text post
+   * Helper method to create a post with video/media
    */
-  async createSimpleTextPost(
-    accountIds: number[],
-    content: string,
+  async createMediaPost(
+    accountUuid: string,
+    caption: string,
+    mediaUrls: string[],
     scheduleDate?: string,
-    scheduleTime?: string
-  ): Promise<unknown> {
+    scheduleTime?: string,
+    postType?: string
+  ): Promise<{ postUuid: string; post: unknown }> {
     const postData: CreatePostData = {
-      accounts: accountIds,
+      accounts: [], // Verrà popolato con l'ID numerico dell'account
       versions: [
         {
-          account_id: accountIds[0] || 0,
+          account_id: 0, // Placeholder, verrà sostituito
           is_original: true,
           content: [
             {
-              body: content,
-              media: [],
+              body: caption,
+              media: mediaUrls,
               url: ""
             }
           ],
-          options: {}
+          options: postType ? { post_type: postType } : {}
         }
       ],
       tags: [],
       date: scheduleDate || null,
-      time: scheduleTime || "",
+      time: scheduleTime || "12:00",
       until_date: null,
       until_time: "",
       repeat_frequency: null,
@@ -220,7 +222,82 @@ export class OnlySocialAPI {
       short_link_provider_id: null
     }
 
-    return this.createPost(postData)
+    // Prima ottieni l'account per avere l'ID numerico
+    const account = await this.getAccount(accountUuid) as { id: number }
+    
+    postData.accounts = [account.id]
+    postData.versions[0].account_id = account.id
+
+    const result = await this.createPost(postData) as { data?: { uuid: string } }
+    
+    return {
+      postUuid: result.data?.uuid || '',
+      post: result
+    }
+  }
+
+  /**
+   * Helper method to schedule a post at specific date/time
+   */
+  async schedulePostAt(
+    postUuid: string,
+    year: number,
+    month: number,
+    day: number,
+    hour: number,
+    minute: number
+  ): Promise<unknown> {
+    // Formatta data e ora per OnlySocial API
+    const date = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+    const time = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`
+    
+    // Per schedulare ad una data specifica, usiamo postNow: false
+    // e aggiorniamo il post con la data corretta
+    return this.makeRequest(`/posts/schedule/${postUuid}`, 'POST', {
+      postNow: false,
+      scheduled_at: `${date} ${time}:00`
+    })
+  }
+
+  /**
+   * Helper method completo per creare e schedulare un post
+   */
+  async createAndSchedulePost(
+    accountUuid: string,
+    caption: string,
+    mediaUrls: string[],
+    year: number,
+    month: number,
+    day: number,
+    hour: number,
+    minute: number,
+    postType?: string
+  ): Promise<{ success: boolean; postUuid: string; scheduledAt: string }> {
+    try {
+      // Crea il post
+      const { postUuid } = await this.createMediaPost(
+        accountUuid,
+        caption,
+        mediaUrls,
+        `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
+        `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`,
+        postType
+      )
+
+      // Schedula il post
+      await this.schedulePostAt(postUuid, year, month, day, hour, minute)
+
+      const scheduledAt = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')} ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00`
+
+      return {
+        success: true,
+        postUuid,
+        scheduledAt
+      }
+    } catch (error) {
+      console.error('Error creating and scheduling post:', error)
+      throw error
+    }
   }
 
   /**

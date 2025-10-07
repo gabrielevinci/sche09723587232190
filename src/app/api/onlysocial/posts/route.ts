@@ -46,11 +46,11 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { content, accountIds, scheduleDate, scheduleTime } = body
+    const { content, accountUuid, mediaUrls = [], scheduleDate, scheduleTime, postType } = body
 
-    if (!content || !accountIds || accountIds.length === 0) {
+    if (!content || !accountUuid) {
       return NextResponse.json(
-        { error: 'Contenuto e account sono obbligatori' },
+        { error: 'Contenuto e accountUuid sono obbligatori' },
         { status: 400 }
       )
     }
@@ -66,14 +66,16 @@ export async function POST(request: NextRequest) {
     }
 
     const api = new OnlySocialAPI({ token, workspaceUuid })
-    const post = await api.createSimpleTextPost(
-      accountIds,
+    const result = await api.createMediaPost(
+      accountUuid,
       content,
+      mediaUrls,
       scheduleDate,
-      scheduleTime
+      scheduleTime,
+      postType
     )
 
-    return NextResponse.json(post, { status: 201 })
+    return NextResponse.json(result, { status: 201 })
   } catch (error) {
     console.error('Error creating OnlySocial post:', error)
     return NextResponse.json(
