@@ -138,9 +138,16 @@ export default function DashboardPage() {
               {/* I tuoi Profili Social */}
               <div className="bg-white overflow-hidden shadow rounded-lg">
                 <div className="px-4 py-5 sm:p-6">
-                  <h2 className="text-lg font-medium text-gray-900 mb-6">
-                    I tuoi Profili Social
-                  </h2>
+                  <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-lg font-medium text-gray-900">
+                      Account Collegati
+                    </h2>
+                    {!isLoading && profilesData && (
+                      <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
+                        {profilesData.totalProfiles} {profilesData.totalProfiles === 1 ? 'profilo' : 'profili'}
+                      </span>
+                    )}
+                  </div>
                   
                   {isLoading ? (
                     <div className="flex items-center justify-center py-8">
@@ -199,14 +206,6 @@ export default function DashboardPage() {
                   ) : (
                     <div className="text-center py-8 text-gray-500">
                       <p>Nessun profilo social assegnato</p>
-                    </div>
-                  )}
-                  
-                  {profilesData && (
-                    <div className="mt-4 pt-4 border-t border-gray-200">
-                      <p className="text-sm text-gray-600">
-                        <span className="font-medium">Totale profili:</span> {profilesData.totalProfiles}
-                      </p>
                     </div>
                   )}
                 </div>
