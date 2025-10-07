@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useSession } from 'next-auth/react'
+import { useSession, signOut } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 
 interface User {
@@ -192,13 +192,22 @@ export default function AdminPage() {
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">
-            Pannello Amministratore
-          </h1>
-          <p className="mt-2 text-gray-600">
-            Gestisci gli utenti e assegna gli account social OnlySocial
-          </p>
+        <div className="mb-8 flex justify-between items-start">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">
+              Pannello Amministratore
+            </h1>
+            <p className="mt-2 text-gray-600">
+              Gestisci gli utenti e assegna gli account social OnlySocial
+            </p>
+          </div>
+          <button
+            onClick={() => signOut({ callbackUrl: '/' })}
+            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2"
+          >
+            <span>🚪</span>
+            Logout
+          </button>
         </div>
 
         {/* Sync Button */}

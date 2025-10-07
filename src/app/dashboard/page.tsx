@@ -2,17 +2,59 @@
 
 import { useSession, signOut } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
+
+interface SocialProfile {
+  id: string
+  platform: string
+  accountName: string
+  accountId: string
+  isActive: boolean
+  assignedAt: string
+  createdAt: string
+}
+
+interface UserProfilesData {
+  user: {
+    id: string
+    name: string
+    email: string
+    isActive: boolean
+  }
+  socialProfiles: SocialProfile[]
+  totalProfiles: number
+}
 
 export default function DashboardPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
+  const [profilesData, setProfilesData] = useState<UserProfilesData | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
     if (status === 'unauthenticated') {
       router.push('/login')
+    } else if (status === 'authenticated') {
+      loadUserProfiles()
     }
   }, [status, router])
+
+  const loadUserProfiles = async () => {
+    try {
+      setIsLoading(true)
+      const res = await fetch('/api/user/profiles')
+      if (res.ok) {
+        const data = await res.json()
+        setProfilesData(data)
+      } else {
+        console.error('Errore caricamento profili:', await res.text())
+      }
+    } catch (error) {
+      console.error('Errore caricamento profili:', error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   const handleSignOut = () => {
     signOut({ callbackUrl: '/' })
@@ -34,7 +76,7 @@ export default function DashboardPage() {
   }
 
   // Check if user has access (social accounts assigned)
-  const hasAccess = session.user.isActive
+  const hasAccess = profilesData?.user?.isActive ?? false
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -93,6 +135,84 @@ export default function DashboardPage() {
           ) : (
             // Active user dashboard
             <div className="space-y-6">
+              {/* I tuoi Profili Social */}
+              <div className="bg-white overflow-hidden shadow rounded-lg">
+                <div className="px-4 py-5 sm:p-6">
+                  <h2 className="text-lg font-medium text-gray-900 mb-6">
+                    I tuoi Profili Social
+                  </h2>
+                  
+                  {isLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                      <span className="ml-2 text-gray-600">Caricamento profili...</span>
+                    </div>
+                  ) : profilesData && profilesData.socialProfiles.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {profilesData.socialProfiles.map((profile) => (
+                        <div
+                          key={profile.id}
+                          className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 transition-colors"
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-2">
+                                <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                                  <span className="text-blue-600 font-semibold text-sm">
+                                    {profile.platform.charAt(0).toUpperCase()}
+                                  </span>
+                                </div>
+                                <div>
+                                  <h3 className="font-semibold text-gray-900 text-sm">
+                                    {profile.accountName}
+                                  </h3>
+                                  <p className="text-xs text-gray-500 capitalize">
+                                    {profile.platform.replace('_', ' ')}
+                                  </p>
+                                </div>
+                              </div>
+                              
+                              <div className="space-y-1 text-xs text-gray-600">
+                                <p>
+                                  <span className="font-medium">ID:</span> {profile.accountId}
+                                </p>
+                                <p>
+                                  <span className="font-medium">Assegnato il:</span>{' '}
+                                  {new Date(profile.assignedAt).toLocaleDateString('it-IT')}
+                                </p>
+                                <p>
+                                  <span className="font-medium">Stato:</span>{' '}
+                                  <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                                    profile.isActive 
+                                      ? 'bg-green-100 text-green-800' 
+                                      : 'bg-gray-100 text-gray-800'
+                                  }`}>
+                                    {profile.isActive ? 'Attivo' : 'Inattivo'}
+                                  </span>
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-gray-500">
+                      <p>Nessun profilo social assegnato</p>
+                    </div>
+                  )}
+                  
+                  {profilesData && (
+                    <div className="mt-4 pt-4 border-t border-gray-200">
+                      <p className="text-sm text-gray-600">
+                        <span className="font-medium">Totale profili:</span> {profilesData.totalProfiles}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Gestione Contenuti */}
               <div className="bg-white overflow-hidden shadow rounded-lg">
                 <div className="px-4 py-5 sm:p-6">
                   <h2 className="text-lg font-medium text-gray-900 mb-6">
