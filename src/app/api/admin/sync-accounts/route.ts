@@ -7,19 +7,43 @@ import { OnlySocialAPI } from '@/lib/onlysocial-api'
 // Sincronizza gli account da OnlySocial al database locale
 export async function POST() {
   try {
+    console.log('🔍 Starting sync-accounts API call')
+    
     const session = await getServerSession(authOptions)
+    console.log('📋 Session data:', {
+      hasSession: !!session,
+      userEmail: session?.user?.email,
+      userId: session?.user?.id
+    })
 
     if (!session?.user?.email) {
+      console.log('❌ No session or email found')
       return NextResponse.json({ error: 'Non autenticato' }, { status: 401 })
     }
+
+    console.log('🔍 Looking for user in database:', session.user.email)
 
     // Verifica che l'utente sia admin
     const user = await prisma.user.findUnique({
       where: { email: session.user.email },
     })
 
-    if (!user?.isAdmin) {
-      return NextResponse.json({ error: 'Accesso negato' }, { status: 403 })
+    console.log('👤 User found in database:', {
+      found: !!user,
+      id: user?.id,
+      email: user?.email,
+      isAdmin: user?.isAdmin,
+      isActive: user?.isActive
+    })
+
+    if (!user) {
+      console.log('❌ User not found in database')
+      return NextResponse.json({ error: 'Utente non trovato' }, { status: 403 })
+    }
+
+    if (!user.isAdmin) {
+      console.log('❌ User is not admin')
+      return NextResponse.json({ error: 'Accesso negato - Non sei amministratore' }, { status: 403 })
     }
 
     const apiKey = process.env.ONLYSOCIAL_API_KEY
