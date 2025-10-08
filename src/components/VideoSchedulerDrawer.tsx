@@ -91,18 +91,11 @@ export default function VideoSchedulerDrawer({
   // Definizione delle colonne con AG Grid
   const columnDefs = useMemo(() => [
     {
-      headerName: 'Video',
-      field: 'videoName' as const,
-      editable: false,
-      width: 250,
-      cellStyle: { fontWeight: 'bold', color: '#1f2937' },
-    },
-    {
       headerName: 'Didascalia',
       field: 'caption' as const,
       editable: true,
-      width: 300,
-      cellStyle: { color: '#374151' },
+      width: 350,
+      cellStyle: { color: '#111827', fontWeight: '500' },
     },
     {
       headerName: 'Anno',
@@ -112,7 +105,7 @@ export default function VideoSchedulerDrawer({
       type: 'numericColumn',
       cellStyle: (params: { data?: ScheduleRow }) => ({
         backgroundColor: !params.data || isValidDate(params.data.year, params.data.month, params.data.day) ? 'white' : '#fee2e2',
-        color: '#1f2937',
+        color: '#111827',
       }),
       valueSetter: (params: ValueSetterParams) => {
         const value = parseInt(params.newValue)
@@ -131,7 +124,7 @@ export default function VideoSchedulerDrawer({
       type: 'numericColumn',
       cellStyle: (params: { data?: ScheduleRow }) => ({
         backgroundColor: !params.data || isValidDate(params.data.year, params.data.month, params.data.day) ? 'white' : '#fee2e2',
-        color: '#1f2937',
+        color: '#111827',
       }),
       valueSetter: (params: ValueSetterParams) => {
         const value = parseInt(params.newValue)
@@ -150,7 +143,7 @@ export default function VideoSchedulerDrawer({
       type: 'numericColumn',
       cellStyle: (params: { data?: ScheduleRow }) => ({
         backgroundColor: !params.data || isValidDate(params.data.year, params.data.month, params.data.day) ? 'white' : '#fee2e2',
-        color: '#1f2937',
+        color: '#111827',
       }),
       valueSetter: (params: ValueSetterParams) => {
         const value = parseInt(params.newValue)
@@ -167,7 +160,7 @@ export default function VideoSchedulerDrawer({
       editable: true,
       width: 80,
       type: 'numericColumn',
-      cellStyle: { color: '#1f2937' },
+      cellStyle: { color: '#111827' },
       valueSetter: (params: ValueSetterParams) => {
         const value = parseInt(params.newValue)
         if (!isNaN(value) && value >= 0 && value <= 23) {
@@ -183,7 +176,7 @@ export default function VideoSchedulerDrawer({
       editable: true,
       width: 90,
       type: 'numericColumn',
-      cellStyle: { color: '#1f2937' },
+      cellStyle: { color: '#111827' },
       valueSetter: (params: ValueSetterParams) => {
         const value = parseInt(params.newValue)
         if (!isNaN(value) && value >= 0 && value <= 59) {
@@ -202,27 +195,38 @@ export default function VideoSchedulerDrawer({
       cellEditorParams: {
         values: ['reel', 'story', 'post'],
       },
-      cellStyle: { color: '#1f2937', fontWeight: '500' },
+      cellStyle: { color: '#111827', fontWeight: '500' },
     },
     {
       headerName: 'Preview',
-      field: 'preview' as const,
+      field: 'videoId' as const,
       editable: false,
-      width: 120,
+      width: 150,
       cellRenderer: (params: { data?: ScheduleRow }) => {
-        if (params.data?.preview) {
-          return `<video src="${params.data.preview}" width="80" height="80" style="object-fit: cover; border-radius: 4px;"></video>`
-        }
-        return ''
+        if (!params.data) return null
+        const video = videos.find(v => v.id === params.data!.videoId)
+        if (!video) return null
+        
+        const div = document.createElement('div')
+        div.style.cssText = 'display: flex; align-items: center; justify-content: center; height: 100%; padding: 4px;'
+        
+        const videoElement = document.createElement('video')
+        videoElement.src = URL.createObjectURL(video.file)
+        videoElement.style.cssText = 'width: 80px; height: 60px; object-fit: cover; border-radius: 4px;'
+        videoElement.muted = true
+        
+        div.appendChild(videoElement)
+        return div
       },
     },
-  ] as ColDef<ScheduleRow>[], [])
+  ] as ColDef<ScheduleRow>[], [videos])
 
   const defaultColDef = useMemo<ColDef>(() => ({
     resizable: true,
     sortable: true,
     filter: false,
     editable: true,
+    suppressMovable: true, // Blocca lo spostamento delle colonne
   }), [])
 
   const validateAllRows = (): { valid: boolean; errors: string[] } => {
@@ -317,6 +321,10 @@ export default function VideoSchedulerDrawer({
           domLayout="autoHeight"
           stopEditingWhenCellsLoseFocus={true}
           singleClickEdit={true}
+          suppressMovableColumns={true}
+          rowSelection="multiple"
+          enableCellTextSelection={true}
+          ensureDomOrder={true}
           onCellValueChanged={(event) => {
             // Aggiorna lo stato quando una cella cambia
             const updatedRows = [...rows]
