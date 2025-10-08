@@ -74,10 +74,18 @@ export default function DashboardPage() {
 
   // Gestione apertura modal selezione profilo
   const handleUploadScheduleClick = () => {
-    if (!profilesData?.socialProfiles || profilesData.socialProfiles.length === 0) {
+    // Se ancora in caricamento, aspetta
+    if (isLoading) {
+      alert('Caricamento in corso, attendere...')
+      return
+    }
+    
+    // Se non ha profili, mostra alert
+    if (!hasProfiles) {
       alert('Non hai profili social assegnati. Contatta l\'amministratore.')
       return
     }
+    
     setShowProfileModal(true)
   }
 
@@ -227,7 +235,9 @@ export default function DashboardPage() {
   }
 
   // Check if user has access (social accounts assigned)
+  // Mostra il contenuto solo se i dati sono caricati
   const hasAccess = profilesData?.user?.isActive ?? false
+  const hasProfiles = profilesData?.socialProfiles && profilesData.socialProfiles.length > 0
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -258,7 +268,13 @@ export default function DashboardPage() {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         <div className="px-4 py-6 sm:px-0">
-          {!hasAccess ? (
+          {isLoading ? (
+            // Mostra loading durante il caricamento iniziale
+            <div className="flex items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+              <span className="ml-3 text-gray-600">Caricamento dati...</span>
+            </div>
+          ) : !hasAccess ? (
             // User without access
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
               <div className="flex">
