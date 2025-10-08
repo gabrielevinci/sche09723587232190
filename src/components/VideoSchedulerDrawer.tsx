@@ -2,10 +2,13 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { AgGridReact } from 'ag-grid-react'
-import { ColDef, ValueSetterParams } from 'ag-grid-community'
+import { ColDef, ValueSetterParams, ModuleRegistry, AllCommunityModule } from 'ag-grid-community'
 import 'ag-grid-community/styles/ag-grid.css'
 import 'ag-grid-community/styles/ag-theme-alpine.css'
 import '../app/aggrid-custom.css'
+
+// Registra tutti i moduli Community di AG Grid
+ModuleRegistry.registerModules([AllCommunityModule])
 
 export interface VideoFile {
   id: string
