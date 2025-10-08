@@ -196,6 +196,31 @@ export class OnlySocialAPI {
     scheduleTime?: string,
     postType?: string
   ): Promise<{ postUuid: string; post: unknown }> {
+    // 1. Prima carica i media su OnlySocial per ottenere gli ID
+    console.log(`📤 Uploading ${mediaUrls.length} media files to OnlySocial...`)
+    const mediaIds: number[] = []
+    
+    for (const mediaUrl of mediaUrls) {
+      try {
+        console.log(`  Uploading: ${mediaUrl}`)
+        const uploadResult = await this.uploadMedia({ file: mediaUrl }) as { data?: { id: number } }
+        
+        if (uploadResult.data?.id) {
+          mediaIds.push(uploadResult.data.id)
+          console.log(`  ✓ Media uploaded with ID: ${uploadResult.data.id}`)
+        } else {
+          console.error(`  ✗ Upload failed, no ID returned:`, uploadResult)
+          throw new Error(`Failed to upload media: ${mediaUrl}`)
+        }
+      } catch (error) {
+        console.error(`  ✗ Error uploading media ${mediaUrl}:`, error)
+        throw error
+      }
+    }
+
+    console.log(`✓ All media uploaded. IDs: ${mediaIds.join(', ')}`)
+
+    // 2. Crea il post con gli ID dei media
     const postData: CreatePostData = {
       accounts: [], // Verrà popolato con l'ID numerico dell'account
       versions: [
@@ -205,7 +230,7 @@ export class OnlySocialAPI {
           content: [
             {
               body: caption,
-              media: mediaUrls,
+              media: mediaIds.map(id => String(id)), // Converti in array di stringhe
               url: ""
             }
           ],
@@ -222,12 +247,13 @@ export class OnlySocialAPI {
       short_link_provider_id: null
     }
 
-    // Prima ottieni l'account per avere l'ID numerico
+    // 3. Ottieni l'account per avere l'ID numerico
     const account = await this.getAccount(accountUuid) as { id: number }
     
     postData.accounts = [account.id]
     postData.versions[0].account_id = account.id
 
+    // 4. Crea il post
     const result = await this.createPost(postData) as { data?: { uuid: string } }
     
     return {
