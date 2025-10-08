@@ -186,7 +186,44 @@ export class OnlySocialAPI {
   // ==================== HELPER METHODS ====================
 
   /**
+   * Build post options based on post type
+   */
+  private buildPostOptions(postType?: string): Record<string, unknown> {
+    const options: Record<string, unknown> = {}
+    
+    if (postType) {
+      // Instagram
+      options.instagram = {
+        type: postType, // "reel", "story", or "post"
+        collaborators: []
+      }
+      options.instagram_direct = {
+        type: postType,
+        collaborators: []
+      }
+      // Facebook
+      options.facebook_page = {
+        type: postType
+      }
+      // TikTok
+      options.tiktok = {
+        privacy_level: {},
+        allow_comments: {},
+        allow_duet: {},
+        allow_stitch: {},
+        content_disclosure: {},
+        brand_organic_toggle: {},
+        brand_content_toggle: {}
+      }
+    }
+    
+    return options
+  }
+
+  /**
    * Helper method to create a post with video/media
+   * NUOVO APPROCCIO: Crea il post direttamente senza upload preliminare
+   * OnlySocial scaricherà i video dagli URL forniti in background
    */
   async createMediaPost(
     accountUuid: string,
@@ -196,31 +233,10 @@ export class OnlySocialAPI {
     scheduleTime?: string,
     postType?: string
   ): Promise<{ postUuid: string; post: unknown }> {
-    // 1. Prima carica i media su OnlySocial per ottenere gli ID
-    console.log(`📤 Uploading ${mediaUrls.length} media files to OnlySocial...`)
-    const mediaIds: number[] = []
+    console.log(`� Creating post with ${mediaUrls.length} media URLs...`)
     
-    for (const mediaUrl of mediaUrls) {
-      try {
-        console.log(`  Uploading: ${mediaUrl}`)
-        const uploadResult = await this.uploadMedia({ file: mediaUrl }) as { data?: { id: number } }
-        
-        if (uploadResult.data?.id) {
-          mediaIds.push(uploadResult.data.id)
-          console.log(`  ✓ Media uploaded with ID: ${uploadResult.data.id}`)
-        } else {
-          console.error(`  ✗ Upload failed, no ID returned:`, uploadResult)
-          throw new Error(`Failed to upload media: ${mediaUrl}`)
-        }
-      } catch (error) {
-        console.error(`  ✗ Error uploading media ${mediaUrl}:`, error)
-        throw error
-      }
-    }
-
-    console.log(`✓ All media uploaded. IDs: ${mediaIds.join(', ')}`)
-
-    // 2. Crea il post con gli ID dei media
+    // Crea il post DIRETTAMENTE con gli URL dei media
+    // OnlySocial li scaricherà in background e genererà gli ID
     const postData: CreatePostData = {
       accounts: [], // Verrà popolato con l'ID numerico dell'account
       versions: [
@@ -230,11 +246,11 @@ export class OnlySocialAPI {
           content: [
             {
               body: caption,
-              media: mediaIds.map(id => String(id)), // Converti in array di stringhe
-              url: ""
+              media: [], // Inizialmente vuoto - OnlySocial processa i media dopo
+              url: mediaUrls[0] || "" // Usiamo il primo video come URL principale
             }
           ],
-          options: postType ? { post_type: postType } : {}
+          options: this.buildPostOptions(postType)
         }
       ],
       tags: [],
