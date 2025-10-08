@@ -126,9 +126,68 @@ export class OnlySocialAPI {
 
   /**
    * Upload a media file
+   * Se mediaData.file è un URL, scarica il file e caricalo come binario
    */
   async uploadMedia(mediaData: MediaFile): Promise<unknown> {
+    // Se file è un URL, scaricalo prima e caricalo come binario
+    if (typeof mediaData.file === 'string' && mediaData.file.startsWith('http')) {
+      return this.uploadMediaFromUrl(mediaData.file, mediaData.alt_text)
+    }
+    
+    // Altrimenti usa il metodo standard JSON
     return this.makeRequest('/media/', 'POST', mediaData)
+  }
+
+  /**
+   * Download video from URL and upload to OnlySocial as binary
+   */
+  private async uploadMediaFromUrl(videoUrl: string, altText?: string): Promise<unknown> {
+    const url = `${this.baseUrl}/${this.config.workspaceUuid}/media/`
+    
+    console.log(`  📥 Downloading video from: ${videoUrl.substring(0, 80)}...`)
+    
+    try {
+      // 1. Scarica il video da DigitalOcean
+      const videoResponse = await fetch(videoUrl)
+      if (!videoResponse.ok) {
+        throw new Error(`Failed to download video: ${videoResponse.status} ${videoResponse.statusText}`)
+      }
+      
+      const videoBlob = await videoResponse.blob()
+      console.log(`  ✓ Downloaded ${(videoBlob.size / 1024 / 1024).toFixed(2)} MB`)
+      
+      // 2. Crea FormData per upload multipart/form-data
+      const formData = new FormData()
+      formData.append('file', videoBlob, 'video.mp4')
+      if (altText) {
+        formData.append('alt_text', altText)
+      }
+      
+      // 3. Upload a OnlySocial come file binario
+      console.log(`  📤 Uploading binary to OnlySocial...`)
+      const uploadResponse = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${this.config.token}`,
+          // NON impostare Content-Type manualmente - FormData lo fa automaticamente con boundary
+        },
+        body: formData,
+      })
+
+      if (!uploadResponse.ok) {
+        const errorText = await uploadResponse.text()
+        throw new Error(`OnlySocial upload failed: ${uploadResponse.status} - ${errorText}`)
+      }
+
+      const result = await uploadResponse.json()
+      console.log(`  ✓ Upload successful, media ID: ${result.id}`)
+      
+      // Restituisci nel formato atteso
+      return { data: result }
+    } catch (error) {
+      console.error('  ✗ Error in uploadMediaFromUrl:', error)
+      throw error
+    }
   }
 
   /**
