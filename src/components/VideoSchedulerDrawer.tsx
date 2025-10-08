@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useEffect } from 'react'
 import { DataGrid } from 'react-data-grid'
 import type { Column } from 'react-data-grid'
 import 'react-data-grid/lib/styles.css'
@@ -84,6 +84,31 @@ export default function VideoSchedulerDrawer({
   const [rows, setRows] = useState<ScheduleRow[]>(initialRows)
   const [isScheduling, setIsScheduling] = useState(false)
 
+  // Aggiorna le righe quando i video cambiano
+  useEffect(() => {
+    console.log('📹 [VideoSchedulerDrawer] Video cambiati:', videos.length)
+    if (videos.length > 0) {
+      const newRows = [...videos]
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map((video, index) => ({
+          id: `row-${index}`,
+          videoId: video.id,
+          videoName: video.name,
+          caption: '',
+          year: currentYear,
+          month: 1,
+          day: 1,
+          hour: 12,
+          minute: 0,
+          postType: '' as const,
+          preview: video.url || '',
+        }))
+      console.log('📝 [VideoSchedulerDrawer] Righe create:', newRows.length)
+      console.log('🎬 [VideoSchedulerDrawer] Prima riga:', newRows[0])
+      setRows(newRows)
+    }
+  }, [videos, currentYear])
+
   // Validazione delle celle
   const validateCell = useCallback((row: ScheduleRow, column: string): string | null => {
     switch (column) {
@@ -131,12 +156,32 @@ export default function VideoSchedulerDrawer({
         name: 'Didascalia',
         width: 250,
         editable: true,
+        renderEditCell: ({ row, onRowChange }) => (
+          <input
+            type="text"
+            className="w-full h-full px-2 border-0 outline-none"
+            value={row.caption}
+            onChange={(e) => onRowChange({ ...row, caption: e.target.value })}
+            autoFocus
+          />
+        ),
       },
       {
         key: 'year',
         name: 'Anno',
         width: 80,
         editable: true,
+        renderEditCell: ({ row, onRowChange }) => (
+          <input
+            type="number"
+            className="w-full h-full px-2 border-0 outline-none"
+            value={row.year}
+            onChange={(e) => onRowChange({ ...row, year: parseInt(e.target.value) || currentYear })}
+            min={2000}
+            max={2100}
+            autoFocus
+          />
+        ),
         renderCell: ({ row }) => {
           const error = validateCell(row, 'year')
           return (
@@ -151,6 +196,17 @@ export default function VideoSchedulerDrawer({
         name: 'Mese',
         width: 80,
         editable: true,
+        renderEditCell: ({ row, onRowChange }) => (
+          <input
+            type="number"
+            className="w-full h-full px-2 border-0 outline-none"
+            value={row.month}
+            onChange={(e) => onRowChange({ ...row, month: parseInt(e.target.value) || 1 })}
+            min={1}
+            max={12}
+            autoFocus
+          />
+        ),
         renderCell: ({ row }) => {
           const error = validateCell(row, 'month')
           return (
@@ -165,6 +221,17 @@ export default function VideoSchedulerDrawer({
         name: 'Giorno',
         width: 80,
         editable: true,
+        renderEditCell: ({ row, onRowChange }) => (
+          <input
+            type="number"
+            className="w-full h-full px-2 border-0 outline-none"
+            value={row.day}
+            onChange={(e) => onRowChange({ ...row, day: parseInt(e.target.value) || 1 })}
+            min={1}
+            max={31}
+            autoFocus
+          />
+        ),
         renderCell: ({ row }) => {
           const error = validateCell(row, 'day')
           return (
@@ -179,6 +246,17 @@ export default function VideoSchedulerDrawer({
         name: 'Orario hh',
         width: 90,
         editable: true,
+        renderEditCell: ({ row, onRowChange }) => (
+          <input
+            type="number"
+            className="w-full h-full px-2 border-0 outline-none"
+            value={row.hour}
+            onChange={(e) => onRowChange({ ...row, hour: parseInt(e.target.value) || 0 })}
+            min={0}
+            max={23}
+            autoFocus
+          />
+        ),
         renderCell: ({ row }) => {
           const error = validateCell(row, 'hour')
           return (
@@ -193,6 +271,17 @@ export default function VideoSchedulerDrawer({
         name: 'Minuti',
         width: 80,
         editable: true,
+        renderEditCell: ({ row, onRowChange }) => (
+          <input
+            type="number"
+            className="w-full h-full px-2 border-0 outline-none"
+            value={row.minute}
+            onChange={(e) => onRowChange({ ...row, minute: parseInt(e.target.value) || 0 })}
+            min={0}
+            max={59}
+            autoFocus
+          />
+        ),
         renderCell: ({ row }) => {
           const error = validateCell(row, 'minute')
           return (
@@ -253,7 +342,7 @@ export default function VideoSchedulerDrawer({
         },
       },
     ],
-    [videos, validateCell]
+    [videos, validateCell, currentYear]
   )
 
   const handleRowsChange = useCallback((newRows: ScheduleRow[]) => {
