@@ -370,13 +370,55 @@ export default function VideoSchedulerDrawer({
 
               {/* Grid */}
               <div className="flex-1 overflow-hidden px-6 py-4">
+                <style jsx global>{`
+                  .rdg {
+                    --rdg-background-color: white;
+                    --rdg-header-background-color: #f3f4f6;
+                    --rdg-row-hover-background-color: #f9fafb;
+                    --rdg-row-selected-background-color: #dbeafe;
+                    --rdg-border-color: #e5e7eb;
+                    --rdg-color: #111827;
+                    --rdg-selection-color: #3b82f6;
+                    font-size: 14px;
+                  }
+                  .rdg-cell {
+                    border-right: 1px solid #e5e7eb;
+                    border-bottom: 1px solid #e5e7eb;
+                    padding: 8px;
+                    display: flex;
+                    align-items: center;
+                  }
+                  .rdg-header-cell {
+                    font-weight: 600;
+                    color: #374151;
+                    background-color: #f3f4f6;
+                    border-right: 1px solid #d1d5db;
+                    border-bottom: 2px solid #d1d5db;
+                  }
+                  .rdg-cell input,
+                  .rdg-cell select {
+                    width: 100%;
+                    border: none;
+                    background: transparent;
+                    outline: none;
+                    font-size: 14px;
+                    color: #111827;
+                  }
+                  .rdg-cell input:focus,
+                  .rdg-cell select:focus {
+                    background-color: #fff;
+                    border: 1px solid #3b82f6;
+                    border-radius: 4px;
+                    padding: 4px;
+                  }
+                `}</style>
                 <DataGrid
                   columns={columns}
                   rows={rows}
                   onRowsChange={handleRowsChange}
                   rowKeyGetter={(row: ScheduleRow) => row.id}
                   className="rdg-light"
-                  style={{ height: '100%' }}
+                  style={{ height: '100%', border: '1px solid #e5e7eb' }}
                 />
               </div>
 

@@ -20,6 +20,7 @@ interface PresignedUrlRequest {
   fileName: string
   fileSize: number
   fileType: string
+  timestamp?: string // Timestamp opzionale per raggruppare file dello stesso batch
 }
 
 export async function POST(request: NextRequest) {
@@ -35,7 +36,7 @@ export async function POST(request: NextRequest) {
 
     // Ottieni dati richiesta
     const body: PresignedUrlRequest = await request.json()
-    const { profileId, fileName, fileSize, fileType } = body
+    const { profileId, fileName, fileSize, fileType, timestamp } = body
 
     if (!profileId || !fileName || !fileSize || !fileType) {
       return NextResponse.json(
@@ -88,11 +89,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Crea timestamp per cartella
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+    // Crea timestamp per cartella (usa quello fornito o creane uno nuovo)
+    const folderTimestamp = timestamp || new Date().toISOString().replace(/[:.]/g, '-')
     
     // Costruisci path: userId/profileId/timestamp/filename.mp4
-    const key = `${user.id}/${profileId}/${timestamp}/${fileName}`
+    const key = `${user.id}/${profileId}/${folderTimestamp}/${fileName}`
 
     // Crea client S3
     const s3Client = new S3Client({

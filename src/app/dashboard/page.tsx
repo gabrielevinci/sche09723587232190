@@ -138,7 +138,11 @@ export default function DashboardPage() {
       // Converti FileList in array e ordina alfabeticamente
       const filesArray = Array.from(files).sort((a, b) => a.name.localeCompare(b.name))
       
+      // Crea un timestamp unico per questo batch di upload
+      const batchTimestamp = new Date().toISOString().replace(/[:.]/g, '-')
+      
       console.log(`📤 [Dashboard] Iniziando upload di ${filesArray.length} video...`)
+      console.log(`📦 [Dashboard] Batch timestamp: ${batchTimestamp}`)
 
       // Upload ogni file direttamente a DigitalOcean usando presigned URLs
       for (let i = 0; i < filesArray.length; i++) {
@@ -146,7 +150,7 @@ export default function DashboardPage() {
         console.log(`📤 [Dashboard] Upload ${i + 1}/${filesArray.length}: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`)
 
         try {
-          // 1. Ottieni presigned URL
+          // 1. Ottieni presigned URL (passa lo stesso timestamp per tutti i file)
           const presignedRes = await fetch('/api/upload/presigned-url', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -155,6 +159,7 @@ export default function DashboardPage() {
               fileName: file.name,
               fileSize: file.size,
               fileType: file.type || 'video/mp4',
+              timestamp: batchTimestamp, // Stesso timestamp per tutti i file del batch
             }),
           })
 
