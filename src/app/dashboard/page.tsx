@@ -53,18 +53,27 @@ export default function DashboardPage() {
 
   const loadUserProfiles = async () => {
     try {
+      console.log('🔄 [Dashboard] Caricamento profili utente...')
       setIsLoading(true)
       const res = await fetch('/api/user/profiles')
+      console.log('📡 [Dashboard] Risposta API ricevuta:', res.status, res.ok)
+      
       if (res.ok) {
         const data = await res.json()
+        console.log('✅ [Dashboard] Dati profili caricati:', data)
+        console.log('   → User:', data.user)
+        console.log('   → Total Profiles:', data.totalProfiles)
+        console.log('   → Social Profiles:', data.socialProfiles)
         setProfilesData(data)
       } else {
-        console.error('Errore caricamento profili:', await res.text())
+        const errorText = await res.text()
+        console.error('❌ [Dashboard] Errore caricamento profili:', errorText)
       }
     } catch (error) {
-      console.error('Errore caricamento profili:', error)
+      console.error('❌ [Dashboard] Errore caricamento profili:', error)
     } finally {
       setIsLoading(false)
+      console.log('✅ [Dashboard] Caricamento profili completato')
     }
   }
 
@@ -74,28 +83,43 @@ export default function DashboardPage() {
 
   // Gestione apertura modal selezione profilo
   const handleUploadScheduleClick = () => {
+    console.log('🔘 [Dashboard] Click su "Carica + Schedula"')
+    console.log('   → isLoading:', isLoading)
+    console.log('   → profilesData:', profilesData)
+    console.log('   → hasProfiles:', hasProfiles)
+    console.log('   → showProfileModal (before):', showProfileModal)
+    
     // Se ancora in caricamento, aspetta
     if (isLoading) {
+      console.warn('⏳ [Dashboard] Caricamento in corso, attendere...')
       alert('Caricamento in corso, attendere...')
       return
     }
     
     // Se non ha profili, mostra alert
     if (!hasProfiles) {
+      console.warn('❌ [Dashboard] Nessun profilo assegnato')
+      console.log('   → profilesData?.socialProfiles:', profilesData?.socialProfiles)
+      console.log('   → length:', profilesData?.socialProfiles?.length)
       alert('Non hai profili social assegnati. Contatta l\'amministratore.')
       return
     }
     
+    console.log('✅ [Dashboard] Apertura modal con profili:', profilesData?.socialProfiles)
     setShowProfileModal(true)
+    console.log('   → showProfileModal (after):', true)
   }
 
   // Gestione selezione profilo e apertura file picker
   const handleProfileSelect = (profile: SocialProfile) => {
+    console.log('👤 [Dashboard] Profilo selezionato:', profile)
     setSelectedProfile(profile)
     setShowProfileModal(false)
+    console.log('   → Chiusura modal')
     
     // Trigger file input click
     setTimeout(() => {
+      console.log('📁 [Dashboard] Apertura file picker...')
       fileInputRef.current?.click()
     }, 100)
   }
@@ -238,6 +262,16 @@ export default function DashboardPage() {
   // Mostra il contenuto solo se i dati sono caricati
   const hasAccess = profilesData?.user?.isActive ?? false
   const hasProfiles = profilesData?.socialProfiles && profilesData.socialProfiles.length > 0
+  
+  // Debug: Log stato componente
+  console.log('🔍 [Dashboard] Render state:', {
+    isLoading,
+    hasAccess,
+    hasProfiles,
+    profilesDataExists: !!profilesData,
+    profilesCount: profilesData?.socialProfiles?.length || 0,
+    showProfileModal,
+  })
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -489,7 +523,10 @@ export default function DashboardPage() {
           <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
             <div
               className="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75"
-              onClick={() => setShowProfileModal(false)}
+              onClick={() => {
+                console.log('🔘 [Dashboard] Click overlay - chiusura modal')
+                setShowProfileModal(false)
+              }}
             />
 
             <div className="inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6">
@@ -512,26 +549,37 @@ export default function DashboardPage() {
               </div>
 
               <div className="mt-5 space-y-2">
-                {profilesData?.socialProfiles.map((profile) => (
-                  <button
-                    key={profile.id}
-                    onClick={() => handleProfileSelect(profile)}
-                    className="w-full flex items-center p-3 border border-gray-200 rounded-lg hover:bg-blue-50 hover:border-blue-300 transition-colors text-left"
-                  >
-                    <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                      <span className="text-blue-600 font-semibold text-sm">
-                        {profile.platform.charAt(0).toUpperCase()}
-                      </span>
-                    </div>
-                    <div className="ml-3 flex-1">
-                      <h4 className="font-medium text-gray-900">{profile.accountName}</h4>
-                      <p className="text-xs text-gray-500 capitalize">{profile.platform.replace('_', ' ')}</p>
-                    </div>
-                    <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                  </button>
-                ))}
+                {(() => {
+                  console.log('🎨 [Dashboard] Rendering profili nel modal:', profilesData?.socialProfiles?.length)
+                  return null
+                })()}
+                {profilesData?.socialProfiles && profilesData.socialProfiles.length > 0 ? (
+                  profilesData.socialProfiles.map((profile) => (
+                    <button
+                      key={profile.id}
+                      onClick={() => handleProfileSelect(profile)}
+                      className="w-full flex items-center p-3 border border-gray-200 rounded-lg hover:bg-blue-50 hover:border-blue-300 transition-colors text-left"
+                    >
+                      <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                        <span className="text-blue-600 font-semibold text-sm">
+                          {profile.platform.charAt(0).toUpperCase()}
+                        </span>
+                      </div>
+                      <div className="ml-3 flex-1">
+                        <h4 className="font-medium text-gray-900">{profile.accountName}</h4>
+                        <p className="text-xs text-gray-500 capitalize">{profile.platform.replace('_', ' ')}</p>
+                      </div>
+                      <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </button>
+                  ))
+                ) : (
+                  <div className="text-center py-4 text-gray-500">
+                    <p>⚠️ DEBUG: Nessun profilo trovato</p>
+                    <p className="text-xs mt-2">profilesData: {JSON.stringify(profilesData?.socialProfiles)}</p>
+                  </div>
+                )}
               </div>
 
               <div className="mt-5 sm:mt-6">
