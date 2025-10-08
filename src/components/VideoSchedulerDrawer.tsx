@@ -1,16 +1,13 @@
 'use client'
 
-import { useState, useCallback, useMemo, useEffect } from 'react'
-import { DataGrid } from 'react-data-grid'
-import type { Column } from 'react-data-grid'
-import 'react-data-grid/lib/styles.css'
+import { useState, useEffect } from 'react'
 
 export interface VideoFile {
   id: string
   name: string
   file: File
-  url?: string // URL del video caricato su DigitalOcean
-  thumbnailUrl?: string // URL della thumbnail
+  url?: string
+  thumbnailUrl?: string
 }
 
 export interface ScheduleRow {
@@ -39,16 +36,11 @@ interface VideoSchedulerDrawerProps {
   onSchedule: (rows: ScheduleRow[]) => Promise<void>
 }
 
-const POST_TYPES = ['reel', 'story', 'post'] as const
-
 // Funzione di validazione data
 function isValidDate(year: number, month: number, day: number): boolean {
-  // Controllo valori base
   if (year < 2000 || year > 2100) return false
   if (month < 1 || month > 12) return false
   if (day < 1 || day > 31) return false
-
-  // Controllo giorni per mese
   const daysInMonth = new Date(year, month, 0).getDate()
   return day <= daysInMonth
 }
@@ -61,27 +53,7 @@ export default function VideoSchedulerDrawer({
   onSchedule,
 }: VideoSchedulerDrawerProps) {
   const currentYear = new Date().getFullYear()
-
-  // Inizializza le righe con i video ordinati alfabeticamente
-  const initialRows: ScheduleRow[] = useMemo(() => {
-    return [...videos]
-      .sort((a, b) => a.name.localeCompare(b.name))
-      .map((video, index) => ({
-        id: `row-${index}`,
-        videoId: video.id,
-        videoName: video.name,
-        caption: '',
-        year: currentYear,
-        month: 1,
-        day: 1,
-        hour: 12,
-        minute: 0,
-        postType: '' as const,
-        preview: video.url || '',
-      }))
-  }, [videos, currentYear])
-
-  const [rows, setRows] = useState<ScheduleRow[]>(initialRows)
+  const [rows, setRows] = useState<ScheduleRow[]>([])
   const [isScheduling, setIsScheduling] = useState(false)
 
   // Aggiorna le righe quando i video cambiano
@@ -104,279 +76,34 @@ export default function VideoSchedulerDrawer({
           preview: video.url || '',
         }))
       console.log('📝 [VideoSchedulerDrawer] Righe create:', newRows.length)
-      console.log('🎬 [VideoSchedulerDrawer] Prima riga:', newRows[0])
       setRows(newRows)
     }
   }, [videos, currentYear])
 
-  // Validazione delle celle
-  const validateCell = useCallback((row: ScheduleRow, column: string): string | null => {
-    switch (column) {
-      case 'year':
-        if (row.year < 2000 || row.year > 2100) return 'Anno non valido (2000-2100)'
-        break
-      case 'month':
-        if (row.month < 1 || row.month > 12) return 'Mese non valido (1-12)'
-        break
-      case 'day':
-        if (row.day < 1 || row.day > 31) return 'Giorno non valido (1-31)'
-        if (!isValidDate(row.year, row.month, row.day)) {
-          return `Data non valida: ${row.day}/${row.month}/${row.year}`
-        }
-        break
-      case 'hour':
-        if (row.hour < 0 || row.hour > 23) return 'Ora non valida (0-23)'
-        break
-      case 'minute':
-        if (row.minute < 0 || row.minute > 59) return 'Minuti non validi (0-59)'
-        break
-      case 'postType':
-        if (row.postType && !POST_TYPES.includes(row.postType as typeof POST_TYPES[number])) {
-          return 'Tipo post non valido (reel, story, post)'
-        }
-        break
-    }
-    return null
-  }, [])
-
-  // La gestione copy/paste è nativa in react-data-grid
-
-  // Definizione colonne
-  const columns: Column<ScheduleRow>[] = useMemo(
-    () => [
-      {
-        key: 'videoName',
-        name: 'Video',
-        width: 180,
-        frozen: true,
-        editable: false,
-      },
-      {
-        key: 'caption',
-        name: 'Didascalia',
-        width: 250,
-        editable: true,
-        renderEditCell: ({ row, onRowChange }) => (
-          <input
-            type="text"
-            className="w-full h-full px-2 border-0 outline-none"
-            value={row.caption}
-            onChange={(e) => onRowChange({ ...row, caption: e.target.value })}
-            autoFocus
-          />
-        ),
-      },
-      {
-        key: 'year',
-        name: 'Anno',
-        width: 80,
-        editable: true,
-        renderEditCell: ({ row, onRowChange }) => (
-          <input
-            type="number"
-            className="w-full h-full px-2 border-0 outline-none"
-            value={row.year}
-            onChange={(e) => onRowChange({ ...row, year: parseInt(e.target.value) || currentYear })}
-            min={2000}
-            max={2100}
-            autoFocus
-          />
-        ),
-        renderCell: ({ row }) => {
-          const error = validateCell(row, 'year')
-          return (
-            <div className={error ? 'text-red-600' : ''} title={error || ''}>
-              {row.year}
-            </div>
-          )
-        },
-      },
-      {
-        key: 'month',
-        name: 'Mese',
-        width: 80,
-        editable: true,
-        renderEditCell: ({ row, onRowChange }) => (
-          <input
-            type="number"
-            className="w-full h-full px-2 border-0 outline-none"
-            value={row.month}
-            onChange={(e) => onRowChange({ ...row, month: parseInt(e.target.value) || 1 })}
-            min={1}
-            max={12}
-            autoFocus
-          />
-        ),
-        renderCell: ({ row }) => {
-          const error = validateCell(row, 'month')
-          return (
-            <div className={error ? 'text-red-600' : ''} title={error || ''}>
-              {row.month}
-            </div>
-          )
-        },
-      },
-      {
-        key: 'day',
-        name: 'Giorno',
-        width: 80,
-        editable: true,
-        renderEditCell: ({ row, onRowChange }) => (
-          <input
-            type="number"
-            className="w-full h-full px-2 border-0 outline-none"
-            value={row.day}
-            onChange={(e) => onRowChange({ ...row, day: parseInt(e.target.value) || 1 })}
-            min={1}
-            max={31}
-            autoFocus
-          />
-        ),
-        renderCell: ({ row }) => {
-          const error = validateCell(row, 'day')
-          return (
-            <div className={error ? 'text-red-600' : ''} title={error || ''}>
-              {row.day}
-            </div>
-          )
-        },
-      },
-      {
-        key: 'hour',
-        name: 'Orario hh',
-        width: 90,
-        editable: true,
-        renderEditCell: ({ row, onRowChange }) => (
-          <input
-            type="number"
-            className="w-full h-full px-2 border-0 outline-none"
-            value={row.hour}
-            onChange={(e) => onRowChange({ ...row, hour: parseInt(e.target.value) || 0 })}
-            min={0}
-            max={23}
-            autoFocus
-          />
-        ),
-        renderCell: ({ row }) => {
-          const error = validateCell(row, 'hour')
-          return (
-            <div className={error ? 'text-red-600' : ''} title={error || ''}>
-              {String(row.hour).padStart(2, '0')}
-            </div>
-          )
-        },
-      },
-      {
-        key: 'minute',
-        name: 'Minuti',
-        width: 80,
-        editable: true,
-        renderEditCell: ({ row, onRowChange }) => (
-          <input
-            type="number"
-            className="w-full h-full px-2 border-0 outline-none"
-            value={row.minute}
-            onChange={(e) => onRowChange({ ...row, minute: parseInt(e.target.value) || 0 })}
-            min={0}
-            max={59}
-            autoFocus
-          />
-        ),
-        renderCell: ({ row }) => {
-          const error = validateCell(row, 'minute')
-          return (
-            <div className={error ? 'text-red-600' : ''} title={error || ''}>
-              {String(row.minute).padStart(2, '0')}
-            </div>
-          )
-        },
-      },
-      {
-        key: 'postType',
-        name: 'Tipologia post',
-        width: 130,
-        editable: true,
-        renderEditCell: ({ row, onRowChange }) => (
-          <select
-            className="w-full h-full px-2 border-0 outline-none"
-            value={row.postType}
-            onChange={(e) =>
-              onRowChange({ ...row, postType: e.target.value as ScheduleRow['postType'] })
-            }
-            autoFocus
-          >
-            <option value="">Seleziona...</option>
-            <option value="reel">Reel</option>
-            <option value="story">Story</option>
-            <option value="post">Post</option>
-          </select>
-        ),
-        renderCell: ({ row }) => {
-          const error = validateCell(row, 'postType')
-          return (
-            <div className={error ? 'text-red-600' : ''} title={error || ''}>
-              {row.postType ? row.postType.charAt(0).toUpperCase() + row.postType.slice(1) : '-'}
-            </div>
-          )
-        },
-      },
-      {
-        key: 'preview',
-        name: 'Preview',
-        width: 120,
-        editable: false,
-        renderCell: ({ row }) => {
-          const video = videos.find((v) => v.id === row.videoId)
-          if (!video) return <div className="text-gray-400">N/D</div>
-          
-          return (
-            <div className="flex items-center justify-center h-full">
-              <video
-                src={URL.createObjectURL(video.file)}
-                className="h-10 w-16 object-cover rounded"
-                muted
-                playsInline
-              />
-            </div>
-          )
-        },
-      },
-    ],
-    [videos, validateCell, currentYear]
-  )
-
-  const handleRowsChange = useCallback((newRows: ScheduleRow[]) => {
+  const updateRow = (index: number, field: keyof ScheduleRow, value: string | number) => {
+    const newRows = [...rows]
+    newRows[index] = { ...newRows[index], [field]: value }
     setRows(newRows)
-  }, [])
+  }
 
-  // Validazione completa prima dello scheduling
   const validateAllRows = (): { valid: boolean; errors: string[] } => {
     const errors: string[] = []
     
     rows.forEach((row, index) => {
-      // Controlla che tutti i campi obbligatori siano compilati
       if (!row.caption.trim()) {
         errors.push(`Riga ${index + 1}: Didascalia mancante`)
       }
       if (!row.postType) {
         errors.push(`Riga ${index + 1}: Tipologia post mancante`)
       }
-      
-      // Controlla validità data
-      const dateError = validateCell(row, 'day')
-      if (dateError) {
-        errors.push(`Riga ${index + 1}: ${dateError}`)
+      if (!isValidDate(row.year, row.month, row.day)) {
+        errors.push(`Riga ${index + 1}: Data non valida ${row.day}/${row.month}/${row.year}`)
       }
-      
-      // Controlla validità ora
-      const hourError = validateCell(row, 'hour')
-      if (hourError) {
-        errors.push(`Riga ${index + 1}: ${hourError}`)
+      if (row.hour < 0 || row.hour > 23) {
+        errors.push(`Riga ${index + 1}: Ora non valida (0-23)`)
       }
-      
-      const minuteError = validateCell(row, 'minute')
-      if (minuteError) {
-        errors.push(`Riga ${index + 1}: ${minuteError}`)
+      if (row.minute < 0 || row.minute > 59) {
+        errors.push(`Riga ${index + 1}: Minuti non validi (0-59)`)
       }
     })
     
@@ -388,11 +115,6 @@ export default function VideoSchedulerDrawer({
     
     if (!validation.valid) {
       alert('Errori di validazione:\n\n' + validation.errors.join('\n'))
-      return
-    }
-    
-    if (!selectedProfile) {
-      alert('Errore: nessun profilo selezionato')
       return
     }
     
@@ -412,132 +134,183 @@ export default function VideoSchedulerDrawer({
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 overflow-hidden">
-      <div className="absolute inset-0 overflow-hidden">
-        {/* Overlay */}
-        <div
-          className="absolute inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
-          onClick={onClose}
-        />
+    <div className="fixed inset-y-0 right-0 z-50 w-full max-w-7xl bg-white shadow-2xl flex flex-col">
+      {/* Header */}
+      <div className="flex-shrink-0 px-6 py-4 border-b border-gray-200 bg-blue-600">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-semibold text-white">
+              Schedula Video - {selectedProfile?.accountName}
+            </h2>
+            <p className="text-sm text-blue-100 mt-1">
+              {rows.length} {rows.length === 1 ? 'video' : 'video'} • {selectedProfile?.platform}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-white hover:bg-blue-700 p-2 rounded-lg transition-colors"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      </div>
 
-        {/* Drawer */}
-        <div className="fixed inset-y-0 right-0 pl-10 max-w-full flex">
-          <div className="w-screen max-w-6xl">
-            <div className="h-full flex flex-col bg-white shadow-xl">
-              {/* Header */}
-              <div className="px-4 py-6 bg-blue-600 sm:px-6">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <h2 className="text-lg font-medium text-white">
-                      Schedula Video - {selectedProfile?.accountName}
-                    </h2>
-                    <p className="mt-1 text-sm text-blue-100">
-                      {videos.length} {videos.length === 1 ? 'video' : 'video'} • {selectedProfile?.platform}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    className="ml-3 h-7 w-7 rounded-md bg-blue-700 text-white hover:bg-blue-800 focus:outline-none"
-                    onClick={onClose}
-                  >
-                    <span className="sr-only">Chiudi pannello</span>
-                    <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-              </div>
+      {/* Istruzioni */}
+      <div className="flex-shrink-0 px-6 py-3 bg-blue-50 border-b border-blue-100">
+        <p className="text-sm text-blue-800">
+          <strong>Istruzioni:</strong> Compila tutti i campi per ogni video. I campi obbligatori sono: Didascalia, Data completa e Tipologia post.
+        </p>
+      </div>
 
-              {/* Info */}
-              <div className="px-6 py-3 bg-blue-50 border-b border-blue-100">
-                <p className="text-sm text-blue-900">
-                  <strong>Istruzioni:</strong> Clicca su una cella per modificarla. 
-                  Usa Ctrl+C/Ctrl+V per copiare e incollare valori tra le celle. 
-                  Usa Shift per selezionare più celle consecutive.
-                </p>
-              </div>
+      {/* Table */}
+      <div className="flex-1 overflow-auto px-6 py-4">
+        <div className="min-w-full">
+          <table className="w-full border-collapse">
+            <thead className="bg-gray-100 sticky top-0 z-10">
+              <tr>
+                <th className="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-700">Video</th>
+                <th className="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-700">Didascalia</th>
+                <th className="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-700">Anno</th>
+                <th className="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-700">Mese</th>
+                <th className="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-700">Giorno</th>
+                <th className="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-700">Ora</th>
+                <th className="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-700">Minuti</th>
+                <th className="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-700">Tipologia</th>
+                <th className="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-700">Preview</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, index) => {
+                const video = videos.find(v => v.id === row.videoId)
+                const dateValid = isValidDate(row.year, row.month, row.day)
+                
+                return (
+                  <tr key={row.id} className="hover:bg-gray-50">
+                    <td className="border border-gray-300 px-3 py-2 text-sm text-gray-900 font-medium">
+                      {row.videoName}
+                    </td>
+                    <td className="border border-gray-300 px-3 py-2">
+                      <input
+                        type="text"
+                        value={row.caption}
+                        onChange={(e) => updateRow(index, 'caption', e.target.value)}
+                        className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                        placeholder="Scrivi la didascalia..."
+                      />
+                    </td>
+                    <td className="border border-gray-300 px-3 py-2">
+                      <input
+                        type="number"
+                        value={row.year}
+                        onChange={(e) => updateRow(index, 'year', parseInt(e.target.value) || currentYear)}
+                        min={2000}
+                        max={2100}
+                        className={`w-20 px-2 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm ${!dateValid ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
+                      />
+                    </td>
+                    <td className="border border-gray-300 px-3 py-2">
+                      <input
+                        type="number"
+                        value={row.month}
+                        onChange={(e) => updateRow(index, 'month', parseInt(e.target.value) || 1)}
+                        min={1}
+                        max={12}
+                        className={`w-16 px-2 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm ${!dateValid ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
+                      />
+                    </td>
+                    <td className="border border-gray-300 px-3 py-2">
+                      <input
+                        type="number"
+                        value={row.day}
+                        onChange={(e) => updateRow(index, 'day', parseInt(e.target.value) || 1)}
+                        min={1}
+                        max={31}
+                        className={`w-16 px-2 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm ${!dateValid ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
+                      />
+                    </td>
+                    <td className="border border-gray-300 px-3 py-2">
+                      <input
+                        type="number"
+                        value={row.hour}
+                        onChange={(e) => updateRow(index, 'hour', parseInt(e.target.value) || 0)}
+                        min={0}
+                        max={23}
+                        className="w-16 px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                      />
+                    </td>
+                    <td className="border border-gray-300 px-3 py-2">
+                      <input
+                        type="number"
+                        value={row.minute}
+                        onChange={(e) => updateRow(index, 'minute', parseInt(e.target.value) || 0)}
+                        min={0}
+                        max={59}
+                        className="w-16 px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                      />
+                    </td>
+                    <td className="border border-gray-300 px-3 py-2">
+                      <select
+                        value={row.postType}
+                        onChange={(e) => updateRow(index, 'postType', e.target.value)}
+                        className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                      >
+                        <option value="">Seleziona...</option>
+                        <option value="reel">Reel</option>
+                        <option value="story">Story</option>
+                        <option value="post">Post</option>
+                      </select>
+                    </td>
+                    <td className="border border-gray-300 px-3 py-2">
+                      {video && (
+                        <video
+                          src={URL.createObjectURL(video.file)}
+                          className="h-12 w-20 object-cover rounded"
+                          muted
+                          playsInline
+                        />
+                      )}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
 
-              {/* Grid */}
-              <div className="flex-1 overflow-hidden px-6 py-4">
-                <style jsx global>{`
-                  .rdg {
-                    --rdg-background-color: white;
-                    --rdg-header-background-color: #f3f4f6;
-                    --rdg-row-hover-background-color: #f9fafb;
-                    --rdg-row-selected-background-color: #dbeafe;
-                    --rdg-border-color: #e5e7eb;
-                    --rdg-color: #111827;
-                    --rdg-selection-color: #3b82f6;
-                    font-size: 14px;
-                  }
-                  .rdg-cell {
-                    border-right: 1px solid #e5e7eb;
-                    border-bottom: 1px solid #e5e7eb;
-                    padding: 8px;
-                    display: flex;
-                    align-items: center;
-                  }
-                  .rdg-header-cell {
-                    font-weight: 600;
-                    color: #374151;
-                    background-color: #f3f4f6;
-                    border-right: 1px solid #d1d5db;
-                    border-bottom: 2px solid #d1d5db;
-                  }
-                  .rdg-cell input,
-                  .rdg-cell select {
-                    width: 100%;
-                    border: none;
-                    background: transparent;
-                    outline: none;
-                    font-size: 14px;
-                    color: #111827;
-                  }
-                  .rdg-cell input:focus,
-                  .rdg-cell select:focus {
-                    background-color: #fff;
-                    border: 1px solid #3b82f6;
-                    border-radius: 4px;
-                    padding: 4px;
-                  }
-                `}</style>
-                <DataGrid
-                  columns={columns}
-                  rows={rows}
-                  onRowsChange={handleRowsChange}
-                  rowKeyGetter={(row: ScheduleRow) => row.id}
-                  className="rdg-light"
-                  style={{ height: '100%', border: '1px solid #e5e7eb' }}
-                />
-              </div>
-
-              {/* Footer */}
-              <div className="flex-shrink-0 px-6 py-4 border-t border-gray-200 bg-gray-50">
-                <div className="flex justify-between items-center">
-                  <div className="text-sm text-gray-600">
-                    {rows.length} {rows.length === 1 ? 'video da schedulare' : 'video da schedulare'}
-                  </div>
-                  <div className="flex space-x-3">
-                    <button
-                      type="button"
-                      className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none"
-                      onClick={onClose}
-                      disabled={isScheduling}
-                    >
-                      Annulla
-                    </button>
-                    <button
-                      type="button"
-                      className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none disabled:bg-gray-400 disabled:cursor-not-allowed"
-                      onClick={handleScheduleClick}
-                      disabled={isScheduling}
-                    >
-                      {isScheduling ? 'Scheduling...' : 'Schedula Tutti'}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
+      {/* Footer */}
+      <div className="flex-shrink-0 px-6 py-4 border-t border-gray-200 bg-gray-50">
+        <div className="flex justify-between items-center">
+          <div className="text-sm text-gray-600">
+            {rows.length} {rows.length === 1 ? 'video da schedulare' : 'video da schedulare'}
+          </div>
+          <div className="flex space-x-3">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors"
+              disabled={isScheduling}
+            >
+              Annulla
+            </button>
+            <button
+              onClick={handleScheduleClick}
+              disabled={isScheduling || rows.length === 0}
+              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center space-x-2"
+            >
+              {isScheduling ? (
+                <>
+                  <svg className="animate-spin h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                  <span>Scheduling...</span>
+                </>
+              ) : (
+                <span>Schedula Tutti</span>
+              )}
+            </button>
           </div>
         </div>
       </div>
