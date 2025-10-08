@@ -35,6 +35,7 @@ export default function VideoSchedulerDrawer({ videos, onSchedule }: VideoSchedu
   const [isOpen, setIsOpen] = useState(false)
   const [data, setData] = useState<(string | number)[][]>([])
   const [loading, setLoading] = useState(false)
+  const [selectedVideoUrl, setSelectedVideoUrl] = useState<string | null>(null)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const hotTableRef = useRef<any>(null)
 
@@ -51,6 +52,8 @@ export default function VideoSchedulerDrawer({ videos, onSchedule }: VideoSchedu
         0, // minute
         '', // postType
         video.name, // videoName (readonly)
+        'Vedi', // preview button text
+        video.url, // videoUrl (hidden)
         video.id // videoId (hidden)
       ])
       setData(newData)
@@ -105,12 +108,41 @@ export default function VideoSchedulerDrawer({ videos, onSchedule }: VideoSchedu
     },
     {
       data: 7,
-      title: 'Video',
+      title: 'File',
       type: 'text',
       readOnly: true,
       width: 200
+    },
+    {
+      data: 8,
+      title: 'Anteprima',
+      type: 'text',
+      readOnly: true,
+      width: 100,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars
+      renderer: function(instance: any, td: HTMLTableCellElement, row: number, col: number) {
+        td.innerHTML = ''
+        td.style.padding = '4px'
+        td.style.textAlign = 'center'
+        
+        const button = document.createElement('button')
+        button.innerHTML = '👁️ Vedi'
+        button.className = 'px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors'
+        button.onclick = (e) => {
+          e.preventDefault()
+          e.stopPropagation()
+          const rowData = data[row]
+          if (rowData && rowData[9]) {
+            setSelectedVideoUrl(rowData[9] as string)
+          }
+        }
+        
+        td.appendChild(button)
+        return td
+      }
     }
-    // Column 8 (videoId) is hidden - used internally
+    // Column 9 (videoUrl) is hidden - used for preview
+    // Column 10 (videoId) is hidden - used internally
   ]
 
   const isValidDate = (year: number, month: number, day: number, hour: number, minute: number): boolean => {
@@ -148,7 +180,9 @@ export default function VideoSchedulerDrawer({ videos, onSchedule }: VideoSchedu
       const minute = Number(row[5])
       const postType = row[6] as string
       const videoName = row[7] as string
-      const videoId = row[8] as string
+      // row[8] is the preview button text
+      // row[9] is the videoUrl
+      const videoId = row[10] as string
 
       // Validate required fields
       if (!videoId) {
@@ -229,7 +263,7 @@ export default function VideoSchedulerDrawer({ videos, onSchedule }: VideoSchedu
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-7xl max-h-[90vh] flex flex-col">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-[95vw] max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b">
           <div>
@@ -252,9 +286,11 @@ export default function VideoSchedulerDrawer({ videos, onSchedule }: VideoSchedu
           </button>
         </div>
 
-        {/* Spreadsheet */}
-        <div className="flex-1 overflow-auto p-6">
-          <div className="border rounded-lg overflow-hidden ht-theme-main">
+        {/* Main Content: Spreadsheet + Video Preview */}
+        <div className="flex-1 overflow-hidden flex">
+          {/* Spreadsheet */}
+          <div className={`${selectedVideoUrl ? 'w-2/3' : 'w-full'} overflow-auto p-6 transition-all`}>
+            <div className="border rounded-lg overflow-hidden ht-theme-main">
             <HotTable
               ref={hotTableRef}
               data={data}
@@ -309,6 +345,33 @@ export default function VideoSchedulerDrawer({ videos, onSchedule }: VideoSchedu
               <li>• <strong>Data</strong>: Deve essere nel futuro</li>
             </ul>
           </div>
+        </div>
+
+        {/* Video Preview Panel */}
+        {selectedVideoUrl && (
+          <div className="w-1/3 border-l p-6 overflow-auto bg-gray-50">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Anteprima Video</h3>
+              <button
+                onClick={() => setSelectedVideoUrl(null)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="bg-black rounded-lg overflow-hidden">
+              <video
+                src={selectedVideoUrl}
+                controls
+                className="w-full h-auto max-h-[60vh]"
+              >
+                Il tuo browser non supporta il tag video.
+              </video>
+            </div>
+          </div>
+        )}
         </div>
 
         {/* Footer */}
