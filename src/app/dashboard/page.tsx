@@ -133,47 +133,68 @@ export default function DashboardPage() {
     try {
       setIsUploading(true)
 
-      // Prepara FormData per l'upload
-      const formData = new FormData()
-      formData.append('profileId', selectedProfile.id)
-
       const videoFiles: VideoFile[] = []
       
       // Converti FileList in array e ordina alfabeticamente
       const filesArray = Array.from(files).sort((a, b) => a.name.localeCompare(b.name))
       
-      // Aggiungi tutti i file al FormData e prepara VideoFile array
-      filesArray.forEach((file, index) => {
-        formData.append('videos', file)
-        videoFiles.push({
-          id: `video-${index}`,
-          name: file.name,
-          file: file,
-        })
-      })
+      console.log(`📤 [Dashboard] Iniziando upload di ${filesArray.length} video...`)
 
-      // Upload su DigitalOcean Spaces
-      console.log(`Uploading ${filesArray.length} videos to DigitalOcean Spaces...`)
-      const uploadRes = await fetch('/api/upload/videos', {
-        method: 'POST',
-        body: formData,
-      })
+      // Upload ogni file direttamente a DigitalOcean usando presigned URLs
+      for (let i = 0; i < filesArray.length; i++) {
+        const file = filesArray[i]
+        console.log(`📤 [Dashboard] Upload ${i + 1}/${filesArray.length}: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`)
 
-      if (!uploadRes.ok) {
-        const error = await uploadRes.json()
-        throw new Error(error.error || 'Errore durante l\'upload')
+        try {
+          // 1. Ottieni presigned URL
+          const presignedRes = await fetch('/api/upload/presigned-url', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              profileId: selectedProfile.id,
+              fileName: file.name,
+              fileSize: file.size,
+              fileType: file.type || 'video/mp4',
+            }),
+          })
+
+          if (!presignedRes.ok) {
+            const error = await presignedRes.json()
+            throw new Error(error.error || 'Errore generazione URL')
+          }
+
+          const { presignedUrl, publicUrl } = await presignedRes.json()
+
+          // 2. Upload diretto a DigitalOcean
+          const uploadRes = await fetch(presignedUrl, {
+            method: 'PUT',
+            body: file,
+            headers: {
+              'Content-Type': file.type || 'video/mp4',
+            },
+          })
+
+          if (!uploadRes.ok) {
+            throw new Error(`Upload fallito: ${uploadRes.status} ${uploadRes.statusText}`)
+          }
+
+          console.log(`✅ [Dashboard] Upload completato: ${file.name}`)
+
+          // Aggiungi alla lista dei video
+          videoFiles.push({
+            id: `video-${i}`,
+            name: file.name,
+            file: file,
+            url: publicUrl,
+          })
+
+        } catch (error) {
+          console.error(`❌ [Dashboard] Errore upload ${file.name}:`, error)
+          throw new Error(`Errore upload ${file.name}: ${error instanceof Error ? error.message : 'Unknown'}`)
+        }
       }
 
-      const uploadData = await uploadRes.json()
-      console.log('Upload completato:', uploadData)
-
-      // Aggiorna i VideoFile con gli URL dei video caricati
-      uploadData.videos.forEach((uploadedVideo: { fileName: string; url: string }) => {
-        const videoFile = videoFiles.find(v => v.name === uploadedVideo.fileName)
-        if (videoFile) {
-          videoFile.url = uploadedVideo.url
-        }
-      })
+      console.log(`✅ [Dashboard] Tutti i ${filesArray.length} video caricati con successo!`)
 
       // Apri il drawer con i video caricati
       setVideosToSchedule(videoFiles)
@@ -522,7 +543,7 @@ export default function DashboardPage() {
         <div className="fixed inset-0 z-50 overflow-y-auto">
           <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
             <div
-              className="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75"
+              className="fixed inset-0 transition-opacity backdrop-blur-sm bg-black/30"
               onClick={() => {
                 console.log('🔘 [Dashboard] Click overlay - chiusura modal')
                 setShowProfileModal(false)

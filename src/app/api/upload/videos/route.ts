@@ -15,6 +15,14 @@ import { prisma } from '@/lib/prisma'
 // Configurazione per upload di file grandi
 export const runtime = 'nodejs'
 export const maxDuration = 300 // 5 minuti
+// Aumenta il limite del body per video grandi (50MB)
+export const bodyParser = false
+export const config = {
+  api: {
+    bodyParser: false,
+    responseLimit: false,
+  },
+}
 
 interface UploadedVideo {
   fileName: string
