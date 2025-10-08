@@ -46,8 +46,18 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { content, accountUuid, mediaUrls = [], scheduleDate, scheduleTime, postType } = body
+    const { 
+      content, 
+      accountUuid, 
+      mediaUrls = [], 
+      mediaIds = [],
+      digitalOceanUrls = [],
+      scheduleDate, 
+      scheduleTime, 
+      postType 
+    } = body
 
+    // Validazione: almeno content e accountUuid
     if (!content || !accountUuid) {
       return NextResponse.json(
         { error: 'Contenuto e accountUuid sono obbligatori' },
@@ -66,20 +76,94 @@ export async function POST(request: NextRequest) {
     }
 
     const api = new OnlySocialAPI({ token, workspaceUuid })
-    const result = await api.createMediaPost(
-      accountUuid,
-      content,
-      mediaUrls,
-      scheduleDate,
-      scheduleTime,
-      postType
-    )
 
-    return NextResponse.json(result, { status: 201 })
+    console.log('📝 Creating post on OnlySocial...')
+    console.log(`   Account UUID: ${accountUuid}`)
+    console.log(`   Caption: ${content.substring(0, 50)}...`)
+    console.log(`   Media URLs: ${mediaUrls.length}`)
+    console.log(`   Media IDs: ${mediaIds.length}`)
+    console.log(`   DigitalOcean URLs: ${digitalOceanUrls.length}`)
+
+    let finalMediaIds: number[] = []
+
+    // OPZIONE 1: Se sono forniti media IDs (già caricati), usali direttamente
+    if (mediaIds && mediaIds.length > 0) {
+      console.log('✅ Using pre-uploaded media IDs')
+      finalMediaIds = mediaIds
+    }
+    // OPZIONE 2: Se sono forniti DigitalOcean URLs, caricali prima
+    else if (digitalOceanUrls && digitalOceanUrls.length > 0) {
+      console.log('📤 Uploading videos from DigitalOcean...')
+      
+      for (const url of digitalOceanUrls) {
+        try {
+          // Estrai il nome del file dall'URL
+          const fileName = url.split('/').pop() || 'video.mp4'
+          
+          console.log(`   Uploading: ${fileName}`)
+          const uploadResult = await api.uploadMediaFromDigitalOcean(
+            url,
+            fileName,
+            `Video uploaded on ${new Date().toLocaleDateString()}`
+          )
+          
+          finalMediaIds.push(uploadResult.id)
+          console.log(`   ✓ Uploaded with ID: ${uploadResult.id}`)
+        } catch (error) {
+          console.error(`   ✗ Failed to upload ${url}:`, error)
+          throw error
+        }
+      }
+      
+      console.log(`✅ All videos uploaded. Media IDs: ${finalMediaIds.join(', ')}`)
+    }
+    // OPZIONE 3: Se sono forniti media URLs (metodo vecchio), usa quello
+    else if (mediaUrls && mediaUrls.length > 0) {
+      console.log('⚠️ Using legacy media URL upload method')
+      const result = await api.createMediaPost(
+        accountUuid,
+        content,
+        mediaUrls,
+        scheduleDate,
+        scheduleTime,
+        postType
+      )
+      return NextResponse.json(result, { status: 201 })
+    }
+
+    // Crea il post con i media IDs
+    if (finalMediaIds.length > 0) {
+      console.log('📤 Creating post with media IDs...')
+      const result = await api.createPostWithMediaIds(
+        accountUuid,
+        content,
+        finalMediaIds,
+        scheduleDate,
+        scheduleTime,
+        postType
+      )
+      
+      console.log('✅ Post created successfully!')
+      return NextResponse.json(result, { status: 201 })
+    } else {
+      // Nessun media, crea post solo testo (se supportato)
+      console.log('📝 Creating text-only post...')
+      const result = await api.createPostWithMediaIds(
+        accountUuid,
+        content,
+        [],
+        scheduleDate,
+        scheduleTime,
+        postType
+      )
+      return NextResponse.json(result, { status: 201 })
+    }
+
   } catch (error) {
-    console.error('Error creating OnlySocial post:', error)
+    console.error('❌ Error creating OnlySocial post:', error)
+    const errorMessage = error instanceof Error ? error.message : 'Errore sconosciuto'
     return NextResponse.json(
-      { error: 'Errore nella creazione del post' },
+      { error: `Errore nella creazione del post: ${errorMessage}` },
       { status: 500 }
     )
   }

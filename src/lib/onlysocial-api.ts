@@ -162,6 +162,102 @@ export class OnlySocialAPI {
   }
 
   /**
+   * ✅ METODO CORRETTO: Upload media scaricando da DigitalOcean e inviando con FormData
+   * Questo metodo risolve il problema del trailing slash e usa multipart/form-data
+   * 
+   * @param digitalOceanUrl - URL pubblico del video su DigitalOcean Spaces
+   * @param videoName - Nome del file video (es. "video.mp4")
+   * @param altText - Testo alternativo opzionale
+   * @returns Oggetto con id, uuid, url del media caricato su OnlySocial
+   */
+  async uploadMediaFromDigitalOcean(
+    digitalOceanUrl: string,
+    videoName: string,
+    altText?: string
+  ): Promise<{
+    id: number
+    uuid: string
+    url: string
+    thumb_url?: string
+    name: string
+    mime_type: string
+    type: string
+    is_video: boolean
+  }> {
+    console.log('📥 Downloading video from DigitalOcean...')
+    console.log(`   URL: ${digitalOceanUrl.substring(0, 80)}...`)
+    
+    try {
+      // Step 1: Scarica il video da DigitalOcean
+      const videoResponse = await fetch(digitalOceanUrl)
+      
+      if (!videoResponse.ok) {
+        throw new Error(`Failed to download from DigitalOcean: ${videoResponse.status} ${videoResponse.statusText}`)
+      }
+      
+      // Step 2: Converti la risposta in Blob
+      const videoBlob = await videoResponse.blob()
+      const videoSizeMB = (videoBlob.size / 1024 / 1024).toFixed(2)
+      console.log(`📦 Video downloaded: ${videoSizeMB} MB`)
+      
+      // Step 3: Crea FormData per multipart/form-data
+      const formData = new FormData()
+      formData.append('file', videoBlob, videoName)
+      formData.append('alt_text', altText || videoName)
+      
+      // ⚠️ IMPORTANTE: URL SENZA trailing slash!
+      const apiUrl = `${this.baseUrl}/${this.config.workspaceUuid}/media`
+      
+      console.log('🚀 Uploading to OnlySocial...')
+      console.log(`   Endpoint: ${apiUrl}`)
+      
+      // Step 4: Invia a OnlySocial con FormData
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${this.config.token}`,
+          'Accept': 'application/json'
+          // ⚠️ NON includere 'Content-Type' - FormData lo gestisce automaticamente
+        },
+        body: formData
+      })
+      
+      // Step 5: Gestisci la risposta
+      const responseText = await response.text()
+      
+      // OnlySocial risponde con 200 o 201 in caso di successo
+      if (response.status === 200 || response.status === 201) {
+        const data = JSON.parse(responseText)
+        console.log('✅ Video uploaded successfully to OnlySocial!')
+        console.log(`   Media ID: ${data.id}`)
+        console.log(`   Media URL: ${data.url}`)
+        if (data.thumb_url) {
+          console.log(`   Thumbnail: ${data.thumb_url}`)
+        }
+        
+        return {
+          id: data.id,
+          uuid: data.uuid,
+          url: data.url,
+          thumb_url: data.thumb_url,
+          name: data.name,
+          mime_type: data.mime_type,
+          type: data.type,
+          is_video: data.is_video
+        }
+      } else {
+        // Errore da OnlySocial
+        console.error('❌ OnlySocial API Error:', response.status, responseText)
+        throw new Error(`OnlySocial API Error: ${response.status} - ${responseText}`)
+      }
+      
+    } catch (error) {
+      console.error('❌ Error in uploadMediaFromDigitalOcean:', error)
+      throw error
+    }
+  }
+
+  /**
    * Delete media files (multiple items)
    */
   async deleteMedia(itemIds: number[]): Promise<unknown> {
@@ -323,6 +419,74 @@ export class OnlySocialAPI {
 
     // 4. Crea il post
     const result = await this.createPost(postData) as { data?: { uuid: string } }
+    
+    return {
+      postUuid: result.data?.uuid || '',
+      post: result
+    }
+  }
+
+  /**
+   * ✅ METODO OTTIMIZZATO: Crea post con media IDs già caricati
+   * Usa questo metodo quando hai già caricato i media con uploadMediaFromDigitalOcean
+   * 
+   * @param accountUuid - UUID dell'account social
+   * @param caption - Testo del post
+   * @param mediaIds - Array di ID dei media già caricati su OnlySocial
+   * @param scheduleDate - Data nel formato YYYY-MM-DD (opzionale)
+   * @param scheduleTime - Ora nel formato HH:MM (opzionale)
+   * @param postType - Tipo di post (reel, story, post)
+   * @returns Oggetto con UUID del post creato
+   */
+  async createPostWithMediaIds(
+    accountUuid: string,
+    caption: string,
+    mediaIds: number[],
+    scheduleDate?: string,
+    scheduleTime?: string,
+    postType?: string
+  ): Promise<{ postUuid: string; post: unknown }> {
+    console.log(`📝 Creating post with ${mediaIds.length} media IDs: ${mediaIds.join(', ')}`)
+    
+    // 1. Prepara i dati del post
+    const postData: CreatePostData = {
+      accounts: [], // Verrà popolato con l'ID numerico dell'account
+      versions: [
+        {
+          account_id: 0, // Placeholder, verrà sostituito
+          is_original: true,
+          content: [
+            {
+              body: caption,
+              media: mediaIds.map(id => String(id)), // Converti gli ID in stringhe
+              url: ""
+            }
+          ],
+          options: this.buildPostOptions(postType)
+        }
+      ],
+      tags: [],
+      date: scheduleDate || null,
+      time: scheduleTime || "12:00",
+      until_date: null,
+      until_time: "",
+      repeat_frequency: null,
+      short_link_provider: null,
+      short_link_provider_id: null
+    }
+
+    // 2. Ottieni l'account per avere l'ID numerico
+    const account = await this.getAccount(accountUuid) as { id: number }
+    
+    postData.accounts = [account.id]
+    postData.versions[0].account_id = account.id
+
+    // 3. Crea il post
+    console.log('📤 Sending post to OnlySocial API...')
+    const result = await this.createPost(postData) as { data?: { uuid: string } }
+    
+    console.log('✅ Post created successfully!')
+    console.log(`   Post UUID: ${result.data?.uuid || 'N/A'}`)
     
     return {
       postUuid: result.data?.uuid || '',
