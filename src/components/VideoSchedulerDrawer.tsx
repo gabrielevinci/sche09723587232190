@@ -42,14 +42,20 @@ export default function VideoSchedulerDrawer({ videos, onSchedule }: VideoSchedu
   useEffect(() => {
     if (videos.length > 0) {
       setIsOpen(true)
-      const currentYear = new Date().getFullYear()
+      const now = new Date()
+      const currentYear = now.getFullYear()
+      const currentMonth = now.getMonth() + 1 // 0-based, quindi +1
+      const currentDay = now.getDate()
+      const currentHour = now.getHours()
+      const currentMinute = now.getMinutes()
+      
       const newData = videos.map(video => [
         '', // caption
         currentYear, // year
-        1, // month
-        1, // day
-        12, // hour
-        0, // minute
+        currentMonth, // month
+        currentDay, // day
+        currentHour, // hour
+        currentMinute, // minute
         '', // postType
         video.name, // videoName (readonly)
         'Vedi', // preview button text
@@ -140,9 +146,23 @@ export default function VideoSchedulerDrawer({ videos, onSchedule }: VideoSchedu
         td.appendChild(button)
         return td
       }
+    },
+    {
+      data: 9,
+      title: 'URL',
+      type: 'text',
+      readOnly: true,
+      width: 1,
+      className: 'htHidden'
+    },
+    {
+      data: 10,
+      title: 'ID',
+      type: 'text',
+      readOnly: true,
+      width: 1,
+      className: 'htHidden'
     }
-    // Column 9 (videoUrl) is hidden - used for preview
-    // Column 10 (videoId) is hidden - used internally
   ]
 
   const isValidDate = (year: number, month: number, day: number, hour: number, minute: number): boolean => {
@@ -180,9 +200,11 @@ export default function VideoSchedulerDrawer({ videos, onSchedule }: VideoSchedu
       const minute = Number(row[5])
       const postType = row[6] as string
       const videoName = row[7] as string
-      // row[8] is the preview button text
-      // row[9] is the videoUrl
+      // row[8] is the preview button text (ignored)
+      // row[9] is the videoUrl (ignored)
       const videoId = row[10] as string
+
+      console.log(`Row ${index}:`, { caption, year, month, day, hour, minute, postType, videoName, videoId, rowLength: row.length })
 
       // Validate required fields
       if (!videoId) {
@@ -290,7 +312,7 @@ export default function VideoSchedulerDrawer({ videos, onSchedule }: VideoSchedu
         <div className="flex-1 overflow-hidden flex">
           {/* Spreadsheet */}
           <div className={`${selectedVideoUrl ? 'w-2/3' : 'w-full'} overflow-auto p-6 transition-all`}>
-            <div className="border rounded-lg overflow-hidden ht-theme-main">
+            <div className="border rounded-lg overflow-hidden">
             <HotTable
               ref={hotTableRef}
               data={data}
@@ -306,6 +328,10 @@ export default function VideoSchedulerDrawer({ videos, onSchedule }: VideoSchedu
               contextMenu={true}
               manualColumnResize={true}
               enterMoves={{ row: 1, col: 0 }}
+              hiddenColumns={{
+                columns: [9, 10],
+                indicators: false
+              }}
               cells={(row, col) => {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const cellProperties: any = {}
