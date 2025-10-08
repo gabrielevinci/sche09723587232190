@@ -139,53 +139,24 @@ export class OnlySocialAPI {
   }
 
   /**
-   * Download video from URL and upload to OnlySocial as binary
+   * Upload media from URL - OnlySocial scarica il file dall'URL fornito
    */
   private async uploadMediaFromUrl(videoUrl: string, altText?: string): Promise<unknown> {
-    const url = `${this.baseUrl}/${this.config.workspaceUuid}/media/`
-    
-    console.log(`  📥 Downloading video from: ${videoUrl.substring(0, 80)}...`)
+    console.log(`  � Sending video URL to OnlySocial: ${videoUrl.substring(0, 80)}...`)
     
     try {
-      // 1. Scarica il video da DigitalOcean
-      const videoResponse = await fetch(videoUrl)
-      if (!videoResponse.ok) {
-        throw new Error(`Failed to download video: ${videoResponse.status} ${videoResponse.statusText}`)
-      }
-      
-      const videoBlob = await videoResponse.blob()
-      console.log(`  ✓ Downloaded ${(videoBlob.size / 1024 / 1024).toFixed(2)} MB`)
-      
-      // 2. Crea FormData per upload multipart/form-data
-      const formData = new FormData()
-      formData.append('file', videoBlob, 'video.mp4')
-      if (altText) {
-        formData.append('alt_text', altText)
-      }
-      
-      // 3. Upload a OnlySocial come file binario
-      console.log(`  📤 Uploading binary to OnlySocial...`)
-      const uploadResponse = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${this.config.token}`,
-          // NON impostare Content-Type manualmente - FormData lo fa automaticamente con boundary
-        },
-        body: formData,
+      // Invia semplicemente l'URL - OnlySocial scaricherà il video da solo
+      const result = await this.makeRequest('/media/', 'POST', {
+        file: videoUrl,
+        alt_text: altText || 'Video from scheduler'
       })
-
-      if (!uploadResponse.ok) {
-        const errorText = await uploadResponse.text()
-        throw new Error(`OnlySocial upload failed: ${uploadResponse.status} - ${errorText}`)
-      }
-
-      const result = await uploadResponse.json()
-      console.log(`  ✓ Upload successful, media ID: ${result.id}`)
       
-      // Restituisci nel formato atteso
+      const data = result as { id?: number; uuid?: string }
+      console.log(`  ✓ Media uploaded, ID: ${data.id || 'N/A'}`)
+      
       return { data: result }
     } catch (error) {
-      console.error('  ✗ Error in uploadMediaFromUrl:', error)
+      console.error('  ✗ Error uploading media URL:', error)
       throw error
     }
   }
