@@ -7,6 +7,9 @@ import 'handsontable/dist/handsontable.full.min.css'
 
 registerAllModules()
 
+// Suppress theme deprecation warning by not using any theme class
+// The default rendering will be used
+
 export interface VideoFile {
   id: string
   name: string
@@ -62,11 +65,16 @@ export default function VideoSchedulerDrawer({ videos, onSchedule }: VideoSchedu
         video.url, // videoUrl (hidden)
         video.id // videoId (hidden)
       ])
+      console.log('📹 Initial video data:', newData)
       setData(newData)
     } else {
       setIsOpen(false)
     }
   }, [videos])
+
+  useEffect(() => {
+    console.log('🎥 Selected video URL changed:', selectedVideoUrl)
+  }, [selectedVideoUrl])
 
   const columns = [
     {
@@ -138,8 +146,12 @@ export default function VideoSchedulerDrawer({ videos, onSchedule }: VideoSchedu
           e.preventDefault()
           e.stopPropagation()
           const rowData = data[row]
+          console.log('🎬 Click preview button:', { row, rowData, videoUrl: rowData?.[9] })
           if (rowData && rowData[9]) {
+            console.log('✅ Setting video URL:', rowData[9])
             setSelectedVideoUrl(rowData[9] as string)
+          } else {
+            console.error('❌ No video URL found in row', row)
           }
         }
         
@@ -184,7 +196,9 @@ export default function VideoSchedulerDrawer({ videos, onSchedule }: VideoSchedu
     if (!hotInstance) return
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const tableData = hotInstance.getData() as any[][]
+    const tableData = hotInstance.getSourceData() as any[][]
+    
+    console.log('📊 Table data:', tableData)
 
     // Validate all rows
     const errors: string[] = []
@@ -379,7 +393,10 @@ export default function VideoSchedulerDrawer({ videos, onSchedule }: VideoSchedu
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-900">Anteprima Video</h3>
               <button
-                onClick={() => setSelectedVideoUrl(null)}
+                onClick={() => {
+                  console.log('❌ Closing video preview')
+                  setSelectedVideoUrl(null)
+                }}
                 className="text-gray-400 hover:text-gray-600"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -392,6 +409,9 @@ export default function VideoSchedulerDrawer({ videos, onSchedule }: VideoSchedu
                 src={selectedVideoUrl}
                 controls
                 className="w-full h-auto max-h-[60vh]"
+                onLoadStart={() => console.log('🎬 Video loading:', selectedVideoUrl)}
+                onError={(e) => console.error('❌ Video error:', e, selectedVideoUrl)}
+                onCanPlay={() => console.log('✅ Video can play:', selectedVideoUrl)}
               >
                 Il tuo browser non supporta il tag video.
               </video>
