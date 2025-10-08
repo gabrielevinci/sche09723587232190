@@ -292,10 +292,32 @@ export class OnlySocialAPI {
     scheduleTime?: string,
     postType?: string
   ): Promise<{ postUuid: string; post: unknown }> {
-    console.log(`� Creating post with ${mediaUrls.length} media URLs...`)
+    console.log(`📤 Uploading ${mediaUrls.length} media files to OnlySocial...`)
     
-    // Crea il post DIRETTAMENTE con gli URL dei media
-    // OnlySocial li scaricherà in background e genererà gli ID
+    // 1. Carica i media su OnlySocial (scarica da DigitalOcean e invia come binario)
+    const mediaIds: number[] = []
+    
+    for (const mediaUrl of mediaUrls) {
+      try {
+        console.log(`  Uploading: ${mediaUrl.substring(0, 80)}...`)
+        const uploadResult = await this.uploadMedia({ file: mediaUrl }) as { data?: { id: number } }
+        
+        if (uploadResult.data?.id) {
+          mediaIds.push(uploadResult.data.id)
+          console.log(`  ✓ Media uploaded with ID: ${uploadResult.data.id}`)
+        } else {
+          console.error(`  ✗ Upload failed, no ID returned:`, uploadResult)
+          throw new Error(`Failed to upload media: ${mediaUrl}`)
+        }
+      } catch (error) {
+        console.error(`  ✗ Error uploading media ${mediaUrl}:`, error)
+        throw error
+      }
+    }
+
+    console.log(`✓ All media uploaded. IDs: ${mediaIds.join(', ')}`)
+
+    // 2. Crea il post con gli ID dei media
     const postData: CreatePostData = {
       accounts: [], // Verrà popolato con l'ID numerico dell'account
       versions: [
@@ -305,8 +327,8 @@ export class OnlySocialAPI {
           content: [
             {
               body: caption,
-              media: [], // Inizialmente vuoto - OnlySocial processa i media dopo
-              url: mediaUrls[0] || "" // Usiamo il primo video come URL principale
+              media: mediaIds.map(id => String(id)), // Converti gli ID in stringhe
+              url: ""
             }
           ],
           options: this.buildPostOptions(postType)
@@ -430,3 +452,4 @@ export class OnlySocialAPI {
     return posts.data || []
   }
 }
+
