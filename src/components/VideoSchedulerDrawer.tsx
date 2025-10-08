@@ -3,8 +3,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { AgGridReact } from 'ag-grid-react'
 import { ColDef, ValueSetterParams, ModuleRegistry, AllCommunityModule } from 'ag-grid-community'
-import 'ag-grid-community/styles/ag-grid.css'
-import 'ag-grid-community/styles/ag-theme-alpine.css'
 import '../app/aggrid-custom.css'
 
 // Registra tutti i moduli Community di AG Grid
@@ -203,20 +201,19 @@ export default function VideoSchedulerDrawer({
       editable: false,
       width: 150,
       cellRenderer: (params: { data?: ScheduleRow }) => {
-        if (!params.data) return null
+        if (!params.data) return ''
         const video = videos.find(v => v.id === params.data!.videoId)
-        if (!video) return null
+        if (!video) return ''
         
-        const div = document.createElement('div')
-        div.style.cssText = 'display: flex; align-items: center; justify-content: center; height: 100%; padding: 4px;'
-        
-        const videoElement = document.createElement('video')
-        videoElement.src = URL.createObjectURL(video.file)
-        videoElement.style.cssText = 'width: 80px; height: 60px; object-fit: cover; border-radius: 4px;'
-        videoElement.muted = true
-        
-        div.appendChild(videoElement)
-        return div
+        return (
+          `<div style="display: flex; align-items: center; justify-content: center; height: 100%; padding: 4px;">
+            <video 
+              src="${URL.createObjectURL(video.file)}" 
+              style="width: 80px; height: 60px; object-fit: cover; border-radius: 4px;"
+              muted
+            ></video>
+          </div>`
+        )
       },
     },
   ] as ColDef<ScheduleRow>[], [videos])
@@ -303,18 +300,16 @@ export default function VideoSchedulerDrawer({
       {/* Istruzioni */}
       <div className="flex-shrink-0 px-6 py-3 bg-blue-50 border-b border-blue-100">
         <p className="text-base text-gray-900">
-          <strong>💡 Funzionalità Excel:</strong> Puoi copiare/incollare da Excel o Google Sheets, trascinare per riempire celle, e modificare direttamente nella griglia.
+          <strong>� Modifica diretta:</strong> Clicca su una cella per modificarla. Puoi copiare/incollare valori singoli con Ctrl+C e Ctrl+V.
         </p>
       </div>
 
       {/* AG Grid Table */}
-      <div className="flex-1 px-6 py-4 ag-theme-alpine">
+      <div className="flex-1 px-6 py-4 ag-theme-quartz">
         <AgGridReact<ScheduleRow>
           rowData={rows}
           columnDefs={columnDefs}
           defaultColDef={defaultColDef}
-          enableRangeSelection={true}
-          enableFillHandle={true}
           undoRedoCellEditing={true}
           undoRedoCellEditingLimit={20}
           animateRows={true}
@@ -322,7 +317,6 @@ export default function VideoSchedulerDrawer({
           stopEditingWhenCellsLoseFocus={true}
           singleClickEdit={true}
           suppressMovableColumns={true}
-          rowSelection="multiple"
           enableCellTextSelection={true}
           ensureDomOrder={true}
           onCellValueChanged={(event) => {

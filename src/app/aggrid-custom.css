@@ -1,40 +1,46 @@
-/* Stili personalizzati per AG Grid - testi più scuri e leggibili */
+/* Import AG Grid base styles */
+@import 'ag-grid-community/styles/ag-grid.css';
+@import 'ag-grid-community/styles/ag-theme-quartz.css';
 
-.ag-theme-alpine {
+/* Stili personalizzati per AG Grid - testi più scuri e leggibili */
+.ag-theme-quartz {
   --ag-font-size: 15px;
   --ag-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+  --ag-header-foreground-color: #111827;
+  --ag-foreground-color: #111827;
+  --ag-data-color: #111827;
 }
 
-.ag-theme-alpine .ag-header-cell-label {
+.ag-theme-quartz .ag-header-cell-label {
   font-weight: 700;
   font-size: 15px;
   color: #111827;
 }
 
-.ag-theme-alpine .ag-cell {
+.ag-theme-quartz .ag-cell {
   font-size: 15px;
   font-weight: 500;
   color: #111827;
   line-height: 1.5;
 }
 
-.ag-theme-alpine .ag-row-hover {
+.ag-theme-quartz .ag-row-hover {
   background-color: #f3f4f6;
 }
 
-.ag-theme-alpine .ag-cell-focus,
-.ag-theme-alpine .ag-cell-inline-editing {
+.ag-theme-quartz .ag-cell-focus,
+.ag-theme-quartz .ag-cell-inline-editing {
   border: 2px solid #3b82f6 !important;
   box-shadow: 0 0 0 1px #3b82f6;
 }
 
-.ag-theme-alpine input[class^='ag-'] {
+.ag-theme-quartz input[class^='ag-'] {
   font-size: 15px;
   font-weight: 600;
   color: #111827;
 }
 
-.ag-theme-alpine select[class^='ag-'] {
+.ag-theme-quartz select[class^='ag-'] {
   font-size: 15px;
   font-weight: 600;
   color: #111827;
