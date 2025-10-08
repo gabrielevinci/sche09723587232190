@@ -21,25 +21,33 @@
    - Access Key ID: sarà qualcosa come `DO00ABCD1234EFGH5678`
    - Secret Access Key: sarà una lunga stringa casuale
 
-### 3. Configura CORS (se necessario)
+### 3. Configura CORS (OBBLIGATORIO)
 
-Se i video devono essere accessibili da browser:
+I video devono essere accessibili da browser, quindi CORS è necessario:
 
-1. Vai al tuo Space
-2. Settings → CORS Configurations
-3. Aggiungi:
-```json
-{
-  "CORSRules": [
-    {
-      "AllowedOrigins": ["*"],
-      "AllowedMethods": ["GET", "HEAD"],
-      "AllowedHeaders": ["*"],
-      "MaxAgeSeconds": 3000
-    }
-  ]
-}
-```
+1. Vai al tuo Space su DigitalOcean
+2. **Settings** → **CORS Configurations** → **Advanced CORS Options**
+3. Compila i campi come segue:
+
+#### Prima Regola CORS (per visualizzare i video):
+- **Origin**: `https://sche09723587232190.vercel.app`
+  (oppure `https://tuodominio.com` se hai un dominio custom)
+- **Allowed Methods**: ✅ Seleziona solo **GET** e **HEAD**
+- **Allowed Headers**: Lascia vuoto o aggiungi `*`
+- **Access Control Max Age**: `3000` (opzionale, in secondi)
+
+#### Seconda Regola CORS (opzionale, per localhost durante sviluppo):
+Clicca **+ Add Header** per aggiungere un'altra regola:
+- **Origin**: `http://localhost:3000`
+- **Allowed Methods**: ✅ Seleziona **GET** e **HEAD**
+- **Allowed Headers**: `*`
+
+**Importante**: 
+- ✅ **NON** selezionare PUT, POST, DELETE (non necessari per visualizzare video)
+- ✅ Origin deve includere `https://` (non solo il dominio)
+- ✅ Se usi Vercel, usa il dominio completo di Vercel o il tuo dominio custom
+
+Clicca **Save CORS Configuration** per salvare.
 
 ### 4. Aggiungi le Variabili d'Ambiente su Vercel
 

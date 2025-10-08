@@ -9,6 +9,12 @@
     "lint": "eslint",
     "postinstall": "prisma generate"
   },
+  "overrides": {
+    "react-data-grid": {
+      "react": "$react",
+      "react-dom": "$react-dom"
+    }
+  },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.901.0",
     "@prisma/client": "^6.16.3",
