@@ -31,15 +31,15 @@ Nel form "Advanced CORS Options" compila:
 └─────────────────────────────────────────────────┘
 
 Allowed Methods*
-☑️ GET          ← SELEZIONA
-☑️ HEAD         ← SELEZIONA
-☐  PUT          ← NON SELEZIONARE
+☑️ GET          ← SELEZIONA (per visualizzare video)
+☑️ HEAD         ← SELEZIONA (per metadata)
+☑️ PUT          ← SELEZIONA (per upload diretto)
 ☐  POST         ← NON SELEZIONARE
 ☐  DELETE       ← NON SELEZIONARE
 
 ┌─────────────────────────────────────────────────┐
 │ Allowed Headers                                 │
-│ (lascia vuoto o metti *)                       │
+│ *                                               │ ← METTI ASTERISCO
 └─────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────┐
