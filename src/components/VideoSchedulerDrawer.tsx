@@ -254,7 +254,7 @@ export default function VideoSchedulerDrawer({ videos, onSchedule }: VideoSchedu
 
         {/* Spreadsheet */}
         <div className="flex-1 overflow-auto p-6">
-          <div className="border rounded-lg overflow-hidden">
+          <div className="border rounded-lg overflow-hidden ht-theme-main">
             <HotTable
               ref={hotTableRef}
               data={data}
@@ -291,15 +291,6 @@ export default function VideoSchedulerDrawer({ videos, onSchedule }: VideoSchedu
                 }
 
                 return cellProperties
-              }}
-              afterChange={(changes, source) => {
-                if (source === 'loadData') return
-                if (!hotTableRef.current) return
-                
-                const hotInstance = hotTableRef.current.hotInstance
-                if (hotInstance) {
-                  setData(hotInstance.getData())
-                }
               }}
             />
           </div>
