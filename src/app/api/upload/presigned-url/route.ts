@@ -10,7 +10,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3'
+import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 
 export const runtime = 'nodejs'
@@ -117,15 +117,22 @@ export async function POST(request: NextRequest) {
       expiresIn: 600, // 10 minuti
     })
 
-    // URL pubblico del file dopo l'upload
-    const publicUrl = `${endpoint}/${bucket}/${key}`
+    // Genera anche URL firmato per lettura (valido per 24 ore)
+    const getCommand = new GetObjectCommand({
+      Bucket: bucket,
+      Key: key,
+    })
+
+    const viewUrl = await getSignedUrl(s3Client, getCommand, {
+      expiresIn: 86400, // 24 ore
+    })
 
     console.log(`[Presigned URL] Generato URL per ${fileName} (${fileSize} bytes)`)
-    console.log(`[Presigned URL] Public URL: ${publicUrl}`)
+    console.log(`[Presigned URL] View URL (24h): ${viewUrl}`)
 
     return NextResponse.json({
       presignedUrl,
-      publicUrl,
+      publicUrl: viewUrl, // Usiamo il viewUrl invece del publicUrl statico
       key,
       expiresIn: 600,
     })

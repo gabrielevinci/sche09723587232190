@@ -410,11 +410,22 @@ export default function VideoSchedulerDrawer({ videos, onSchedule }: VideoSchedu
                 controls
                 className="w-full h-auto max-h-[60vh]"
                 onLoadStart={() => console.log('🎬 Video loading:', selectedVideoUrl)}
-                onError={(e) => console.error('❌ Video error:', e, selectedVideoUrl)}
+                onError={(e) => {
+                  console.error('❌ Video error:', e, selectedVideoUrl)
+                  console.error('Video element:', e.target)
+                  // Check if it's a CORS or network error
+                  const videoEl = e.target as HTMLVideoElement
+                  if (videoEl.error) {
+                    console.error('Video error code:', videoEl.error.code, 'Message:', videoEl.error.message)
+                  }
+                }}
                 onCanPlay={() => console.log('✅ Video can play:', selectedVideoUrl)}
               >
                 Il tuo browser non supporta il tag video.
               </video>
+              <p className="text-white text-xs mt-2 p-2">
+                Se il video non si carica, l&apos;URL potrebbe essere scaduto (presigned URL valido 10 minuti).
+              </p>
             </div>
           </div>
         )}
