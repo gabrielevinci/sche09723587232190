@@ -1,368 +1,351 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
-import { AgGridReact } from 'ag-grid-react'
-import { ColDef, ValueSetterParams, ModuleRegistry, AllCommunityModule } from 'ag-grid-community'
-import '../app/aggrid-custom.css'
+import { useEffect, useState, useRef } from 'react'
+import { HotTable } from '@handsontable/react'
+import { registerAllModules } from 'handsontable/registry'
+import 'handsontable/dist/handsontable.full.min.css'
 
-// Registra tutti i moduli Community di AG Grid
-ModuleRegistry.registerModules([AllCommunityModule])
+registerAllModules()
 
 export interface VideoFile {
   id: string
   name: string
-  file: File
-  url?: string
-  thumbnailUrl?: string
+  url: string
 }
 
 export interface ScheduleRow {
   id: string
-  videoId: string
-  videoName: string
   caption: string
   year: number
   month: number
   day: number
   hour: number
   minute: number
-  postType: 'reel' | 'story' | 'post' | ''
-  preview: string
+  postType: 'reel' | 'story' | 'post'
+  videoId: string
+  videoName: string
 }
 
 interface VideoSchedulerDrawerProps {
-  isOpen: boolean
-  onClose: () => void
   videos: VideoFile[]
-  selectedProfile: {
-    id: string
-    accountName: string
-    platform: string
-  } | null
-  onSchedule: (rows: ScheduleRow[]) => Promise<void>
+  onSchedule: (scheduleData: ScheduleRow[]) => Promise<void>
 }
 
-// Funzione di validazione data
-function isValidDate(year: number, month: number, day: number): boolean {
-  if (year < 2000 || year > 2100) return false
-  if (month < 1 || month > 12) return false
-  if (day < 1 || day > 31) return false
-  const daysInMonth = new Date(year, month, 0).getDate()
-  return day <= daysInMonth
-}
+export default function VideoSchedulerDrawer({ videos, onSchedule }: VideoSchedulerDrawerProps) {
+  const [isOpen, setIsOpen] = useState(false)
+  const [data, setData] = useState<(string | number)[][]>([])
+  const [loading, setLoading] = useState(false)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const hotTableRef = useRef<any>(null)
 
-export default function VideoSchedulerDrawer({
-  isOpen,
-  onClose,
-  videos,
-  selectedProfile,
-  onSchedule,
-}: VideoSchedulerDrawerProps) {
-  const currentYear = new Date().getFullYear()
-  const [rows, setRows] = useState<ScheduleRow[]>([])
-  const [isScheduling, setIsScheduling] = useState(false)
-
-  // Aggiorna le righe quando i video cambiano
   useEffect(() => {
-    console.log('📹 [VideoSchedulerDrawer] Video cambiati:', videos.length)
     if (videos.length > 0) {
-      const newRows = [...videos]
-        .sort((a, b) => a.name.localeCompare(b.name))
-        .map((video, index) => ({
-          id: `row-${index}`,
-          videoId: video.id,
-          videoName: video.name,
-          caption: '',
-          year: currentYear,
-          month: 1,
-          day: 1,
-          hour: 12,
-          minute: 0,
-          postType: '' as const,
-          preview: video.url || '',
-        }))
-      console.log('📝 [VideoSchedulerDrawer] Righe create:', newRows.length)
-      setRows(newRows)
+      setIsOpen(true)
+      const currentYear = new Date().getFullYear()
+      const newData = videos.map(video => [
+        '', // caption
+        currentYear, // year
+        1, // month
+        1, // day
+        12, // hour
+        0, // minute
+        '', // postType
+        video.name, // videoName (readonly)
+        video.id // videoId (hidden)
+      ])
+      setData(newData)
+    } else {
+      setIsOpen(false)
     }
-  }, [videos, currentYear])
+  }, [videos])
 
-  // Definizione delle colonne con AG Grid
-  const columnDefs = useMemo(() => [
+  const columns = [
     {
-      headerName: 'Didascalia',
-      field: 'caption' as const,
-      editable: true,
-      width: 350,
-      cellStyle: { color: '#111827', fontWeight: '500' },
+      data: 0,
+      title: 'Didascalia',
+      type: 'text',
+      width: 300
     },
     {
-      headerName: 'Anno',
-      field: 'year' as const,
-      editable: true,
-      width: 100,
-      type: 'numericColumn',
-      cellStyle: (params: { data?: ScheduleRow }) => ({
-        backgroundColor: !params.data || isValidDate(params.data.year, params.data.month, params.data.day) ? 'white' : '#fee2e2',
-        color: '#111827',
-      }),
-      valueSetter: (params: ValueSetterParams) => {
-        const value = parseInt(params.newValue)
-        if (!isNaN(value)) {
-          params.data.year = value
-          return true
-        }
-        return false
-      },
+      data: 1,
+      title: 'Anno',
+      type: 'numeric',
+      width: 80
     },
     {
-      headerName: 'Mese',
-      field: 'month' as const,
-      editable: true,
-      width: 90,
-      type: 'numericColumn',
-      cellStyle: (params: { data?: ScheduleRow }) => ({
-        backgroundColor: !params.data || isValidDate(params.data.year, params.data.month, params.data.day) ? 'white' : '#fee2e2',
-        color: '#111827',
-      }),
-      valueSetter: (params: ValueSetterParams) => {
-        const value = parseInt(params.newValue)
-        if (!isNaN(value) && value >= 1 && value <= 12) {
-          params.data.month = value
-          return true
-        }
-        return false
-      },
+      data: 2,
+      title: 'Mese',
+      type: 'numeric',
+      width: 70
     },
     {
-      headerName: 'Giorno',
-      field: 'day' as const,
-      editable: true,
-      width: 100,
-      type: 'numericColumn',
-      cellStyle: (params: { data?: ScheduleRow }) => ({
-        backgroundColor: !params.data || isValidDate(params.data.year, params.data.month, params.data.day) ? 'white' : '#fee2e2',
-        color: '#111827',
-      }),
-      valueSetter: (params: ValueSetterParams) => {
-        const value = parseInt(params.newValue)
-        if (!isNaN(value) && value >= 1 && value <= 31) {
-          params.data.day = value
-          return true
-        }
-        return false
-      },
+      data: 3,
+      title: 'Giorno',
+      type: 'numeric',
+      width: 80
     },
     {
-      headerName: 'Ora',
-      field: 'hour' as const,
-      editable: true,
-      width: 80,
-      type: 'numericColumn',
-      cellStyle: { color: '#111827' },
-      valueSetter: (params: ValueSetterParams) => {
-        const value = parseInt(params.newValue)
-        if (!isNaN(value) && value >= 0 && value <= 23) {
-          params.data.hour = value
-          return true
-        }
-        return false
-      },
+      data: 4,
+      title: 'Ora',
+      type: 'numeric',
+      width: 70
     },
     {
-      headerName: 'Minuti',
-      field: 'minute' as const,
-      editable: true,
-      width: 90,
-      type: 'numericColumn',
-      cellStyle: { color: '#111827' },
-      valueSetter: (params: ValueSetterParams) => {
-        const value = parseInt(params.newValue)
-        if (!isNaN(value) && value >= 0 && value <= 59) {
-          params.data.minute = value
-          return true
-        }
-        return false
-      },
+      data: 5,
+      title: 'Minuti',
+      type: 'numeric',
+      width: 80
     },
     {
-      headerName: 'Tipologia',
-      field: 'postType' as const,
-      editable: true,
-      width: 120,
-      cellEditor: 'agSelectCellEditor',
-      cellEditorParams: {
-        values: ['reel', 'story', 'post'],
-      },
-      cellStyle: { color: '#111827', fontWeight: '500' },
+      data: 6,
+      title: 'Tipologia',
+      type: 'dropdown',
+      source: ['reel', 'story', 'post'],
+      width: 110
     },
     {
-      headerName: 'Preview',
-      field: 'videoId' as const,
-      editable: false,
-      width: 150,
-      cellRenderer: (params: { data?: ScheduleRow }) => {
-        if (!params.data) return ''
-        const video = videos.find(v => v.id === params.data!.videoId)
-        if (!video) return ''
-        
-        return (
-          `<div style="display: flex; align-items: center; justify-content: center; height: 100%; padding: 4px;">
-            <video 
-              src="${URL.createObjectURL(video.file)}" 
-              style="width: 80px; height: 60px; object-fit: cover; border-radius: 4px;"
-              muted
-            ></video>
-          </div>`
-        )
-      },
-    },
-  ] as ColDef<ScheduleRow>[], [videos])
+      data: 7,
+      title: 'Video',
+      type: 'text',
+      readOnly: true,
+      width: 200
+    }
+    // Column 8 (videoId) is hidden - used internally
+  ]
 
-  const defaultColDef = useMemo<ColDef>(() => ({
-    resizable: true,
-    sortable: true,
-    filter: false,
-    editable: true,
-    suppressMovable: true, // Blocca lo spostamento delle colonne
-  }), [])
+  const isValidDate = (year: number, month: number, day: number, hour: number, minute: number): boolean => {
+    if (month < 1 || month > 12) return false
+    if (day < 1 || day > 31) return false
+    if (hour < 0 || hour > 23) return false
+    if (minute < 0 || minute > 59) return false
 
-  const validateAllRows = (): { valid: boolean; errors: string[] } => {
-    const errors: string[] = []
-    
-    rows.forEach((row, index) => {
-      if (!row.caption.trim()) {
-        errors.push(`Riga ${index + 1}: Didascalia mancante`)
-      }
-      if (!row.postType) {
-        errors.push(`Riga ${index + 1}: Tipologia post mancante`)
-      }
-      if (!isValidDate(row.year, row.month, row.day)) {
-        errors.push(`Riga ${index + 1}: Data non valida ${row.day}/${row.month}/${row.year}`)
-      }
-      if (row.hour < 0 || row.hour > 23) {
-        errors.push(`Riga ${index + 1}: Ora non valida (0-23)`)
-      }
-      if (row.minute < 0 || row.minute > 59) {
-        errors.push(`Riga ${index + 1}: Minuti non validi (0-59)`)
-      }
-    })
-    
-    return { valid: errors.length === 0, errors }
+    const date = new Date(year, month - 1, day, hour, minute)
+    return date.getFullYear() === year &&
+           date.getMonth() === month - 1 &&
+           date.getDate() === day
   }
 
-  const handleScheduleClick = async () => {
-    const validation = validateAllRows()
-    
-    if (!validation.valid) {
-      alert('Errori di validazione:\n\n' + validation.errors.join('\n'))
+  const handleScheduleAll = async () => {
+    if (!hotTableRef.current) return
+
+    const hotInstance = hotTableRef.current.hotInstance
+    if (!hotInstance) return
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const tableData = hotInstance.getData() as any[][]
+
+    // Validate all rows
+    const errors: string[] = []
+    const scheduleData: ScheduleRow[] = []
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    tableData.forEach((row: any[], index: number) => {
+      const caption = String(row[0] || '')
+      const year = Number(row[1])
+      const month = Number(row[2])
+      const day = Number(row[3])
+      const hour = Number(row[4])
+      const minute = Number(row[5])
+      const postType = row[6] as string
+      const videoName = row[7] as string
+      const videoId = row[8] as string
+
+      // Validate required fields
+      if (!videoId) {
+        errors.push(`Riga ${index + 1}: Video mancante`)
+        return
+      }
+
+      if (!caption || caption.trim() === '') {
+        errors.push(`Riga ${index + 1}: Didascalia mancante`)
+        return
+      }
+
+      if (!postType || !['reel', 'story', 'post'].includes(postType)) {
+        errors.push(`Riga ${index + 1}: Tipologia non valida (scegli: reel, story, post)`)
+        return
+      }
+
+      // Validate date
+      if (!isValidDate(year, month, day, hour, minute)) {
+        errors.push(`Riga ${index + 1}: Data non valida`)
+        return
+      }
+
+      const scheduledDate = new Date(year, month - 1, day, hour, minute)
+      if (scheduledDate <= new Date()) {
+        errors.push(`Riga ${index + 1}: La data deve essere nel futuro`)
+        return
+      }
+
+      scheduleData.push({
+        id: `schedule-${index}`,
+        caption,
+        year,
+        month,
+        day,
+        hour,
+        minute,
+        postType: postType as 'reel' | 'story' | 'post',
+        videoId,
+        videoName
+      })
+    })
+
+    if (errors.length > 0) {
+      alert('Errori trovati:\n\n' + errors.join('\n'))
       return
     }
-    
-    setIsScheduling(true)
-    try {
-      await onSchedule(rows)
-      alert('Scheduling completato con successo!')
-      onClose()
-    } catch (error) {
-      console.error('Errore durante lo scheduling:', error)
-      alert('Errore durante lo scheduling: ' + (error instanceof Error ? error.message : 'Errore sconosciuto'))
-    } finally {
-      setIsScheduling(false)
+
+    if (scheduleData.length === 0) {
+      alert('Nessun video da schedulare')
+      return
     }
+
+    setLoading(true)
+    try {
+      await onSchedule(scheduleData)
+      setIsOpen(false)
+      setData([])
+    } catch (error) {
+      console.error('Schedule error:', error)
+      alert('Errore durante la schedulazione. Riprova.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleClose = () => {
+    if (loading) return
+    if (data.length > 0) {
+      const confirm = window.confirm('Chiudendo perderai tutti i dati. Sei sicuro?')
+      if (!confirm) return
+    }
+    setIsOpen(false)
+    setData([])
   }
 
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-y-0 right-0 z-50 w-full max-w-7xl bg-white shadow-2xl flex flex-col">
-      {/* Header */}
-      <div className="flex-shrink-0 px-6 py-4 border-b border-gray-200 bg-blue-600">
-        <div className="flex items-center justify-between">
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-7xl max-h-[90vh] flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between p-6 border-b">
           <div>
-            <h2 className="text-2xl font-bold text-white">
-              Schedula Video - {selectedProfile?.accountName}
+            <h2 className="text-2xl font-bold text-gray-900">
+              Schedula Video
             </h2>
-            <p className="text-sm text-blue-100 mt-1">
-              {rows.length} {rows.length === 1 ? 'video' : 'video'} • {selectedProfile?.platform}
+            <p className="text-sm text-gray-600 mt-1">
+              {videos.length} video{videos.length !== 1 ? ' caricati' : ' caricato'} • 
+              Ctrl+C/V per copiare • Ctrl+Z per annullare • Trascina per riempire
             </p>
           </div>
           <button
-            onClick={onClose}
-            className="text-white hover:bg-blue-700 p-2 rounded-lg transition-colors"
+            onClick={handleClose}
+            disabled={loading}
+            className="text-gray-400 hover:text-gray-600 disabled:opacity-50"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
-      </div>
 
-      {/* Istruzioni */}
-      <div className="flex-shrink-0 px-6 py-3 bg-blue-50 border-b border-blue-100">
-        <p className="text-base text-gray-900">
-          <strong>� Modifica diretta:</strong> Clicca su una cella per modificarla. Puoi copiare/incollare valori singoli con Ctrl+C e Ctrl+V.
-        </p>
-      </div>
+        {/* Spreadsheet */}
+        <div className="flex-1 overflow-auto p-6">
+          <div className="border rounded-lg overflow-hidden">
+            <HotTable
+              ref={hotTableRef}
+              data={data}
+              columns={columns}
+              colHeaders={true}
+              rowHeaders={true}
+              width="100%"
+              height="500"
+              licenseKey="non-commercial-and-evaluation"
+              copyPaste={true}
+              undo={true}
+              fillHandle={true}
+              contextMenu={true}
+              manualColumnResize={true}
+              enterMoves={{ row: 1, col: 0 }}
+              cells={(row, col) => {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const cellProperties: any = {}
+                
+                // Validate date fields
+                if (col >= 1 && col <= 5) {
+                  const rowData = data[row]
+                  if (rowData) {
+                    const year = Number(rowData[1])
+                    const month = Number(rowData[2])
+                    const day = Number(rowData[3])
+                    const hour = Number(rowData[4])
+                    const minute = Number(rowData[5])
 
-      {/* AG Grid Table */}
-      <div className="flex-1 px-6 py-4 ag-theme-quartz">
-        <AgGridReact<ScheduleRow>
-          rowData={rows}
-          columnDefs={columnDefs}
-          defaultColDef={defaultColDef}
-          undoRedoCellEditing={true}
-          undoRedoCellEditingLimit={20}
-          animateRows={true}
-          domLayout="autoHeight"
-          stopEditingWhenCellsLoseFocus={true}
-          singleClickEdit={true}
-          suppressMovableColumns={true}
-          enableCellTextSelection={true}
-          ensureDomOrder={true}
-          onCellValueChanged={(event) => {
-            // Aggiorna lo stato quando una cella cambia
-            const updatedRows = [...rows]
-            const index = updatedRows.findIndex(r => r.id === event.data?.id)
-            if (index !== -1 && event.data) {
-              updatedRows[index] = event.data
-              setRows(updatedRows)
-            }
-          }}
-        />
-      </div>
+                    if (!isValidDate(year, month, day, hour, minute)) {
+                      cellProperties.className = 'htInvalid'
+                    }
+                  }
+                }
 
-      {/* Footer */}
-      <div className="flex-shrink-0 px-6 py-4 border-t border-gray-200 bg-gray-50">
-        <div className="flex justify-between items-center">
-          <div className="text-base font-medium text-gray-900">
-            {rows.length} {rows.length === 1 ? 'video da schedulare' : 'video da schedulare'}
+                return cellProperties
+              }}
+              afterChange={(changes, source) => {
+                if (source === 'loadData') return
+                if (!hotTableRef.current) return
+                
+                const hotInstance = hotTableRef.current.hotInstance
+                if (hotInstance) {
+                  setData(hotInstance.getData())
+                }
+              }}
+            />
           </div>
-          <div className="flex space-x-3">
-            <button
-              onClick={onClose}
-              className="px-5 py-2.5 border-2 border-gray-300 rounded-lg text-gray-900 font-medium hover:bg-gray-100 transition-colors"
-              disabled={isScheduling}
-            >
-              Annulla
-            </button>
-            <button
-              onClick={handleScheduleClick}
-              disabled={isScheduling || rows.length === 0}
-              className="px-6 py-2.5 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center space-x-2"
-            >
-              {isScheduling ? (
-                <>
-                  <svg className="animate-spin h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                  </svg>
-                  <span>Scheduling...</span>
-                </>
-              ) : (
-                <span>Schedula Tutti</span>
-              )}
-            </button>
+
+          {/* Legend */}
+          <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <h3 className="font-semibold text-blue-900 mb-2">Istruzioni:</h3>
+            <ul className="text-sm text-blue-800 space-y-1">
+              <li>• <strong>Ctrl+C / Ctrl+V</strong>: Copia e incolla celle</li>
+              <li>• <strong>Ctrl+Z / Ctrl+Y</strong>: Annulla e ripristina modifiche</li>
+              <li>• <strong>Invio</strong>: Passa alla cella sotto</li>
+              <li>• <strong>Trascina l&apos;angolo</strong>: Riempi celle adiacenti</li>
+              <li>• <strong>Shift+Click</strong>: Seleziona più celle</li>
+              <li>• <strong>Click destro</strong>: Menu contestuale</li>
+              <li>• <strong>Tipologia</strong>: Scegli tra reel, story, post</li>
+              <li>• <strong>Data</strong>: Deve essere nel futuro</li>
+            </ul>
           </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between p-6 border-t bg-gray-50">
+          <button
+            onClick={handleClose}
+            disabled={loading}
+            className="px-6 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+          >
+            Annulla
+          </button>
+          <button
+            onClick={handleScheduleAll}
+            disabled={loading || data.length === 0}
+            className="px-6 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          >
+            {loading ? (
+              <>
+                <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+                Schedulazione...
+              </>
+            ) : (
+              'Schedula Tutti'
+            )}
+          </button>
         </div>
       </div>
     </div>

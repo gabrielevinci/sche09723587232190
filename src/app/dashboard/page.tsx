@@ -37,7 +37,6 @@ export default function DashboardPage() {
   const [selectedProfile, setSelectedProfile] = useState<SocialProfile | null>(null)
   
   // Stati per il drawer di scheduling
-  const [showSchedulerDrawer, setShowSchedulerDrawer] = useState(false)
   const [videosToSchedule, setVideosToSchedule] = useState<VideoFile[]>([])
   const [isUploading, setIsUploading] = useState(false)
   
@@ -189,7 +188,6 @@ export default function DashboardPage() {
           videoFiles.push({
             id: `video-${i}`,
             name: file.name,
-            file: file,
             url: publicUrl,
           })
 
@@ -203,7 +201,6 @@ export default function DashboardPage() {
 
       // Apri il drawer con i video caricati
       setVideosToSchedule(videoFiles)
-      setShowSchedulerDrawer(true)
 
     } catch (error) {
       console.error('Errore durante l\'upload:', error)
@@ -264,7 +261,6 @@ export default function DashboardPage() {
     }
 
     // Chiudi il drawer
-    setShowSchedulerDrawer(false)
     setVideosToSchedule([])
     setSelectedProfile(null)
   }
@@ -624,18 +620,7 @@ export default function DashboardPage() {
 
       {/* Drawer scheduling video */}
       <VideoSchedulerDrawer
-        isOpen={showSchedulerDrawer}
-        onClose={() => {
-          setShowSchedulerDrawer(false)
-          setVideosToSchedule([])
-          setSelectedProfile(null)
-        }}
         videos={videosToSchedule}
-        selectedProfile={selectedProfile ? {
-          id: selectedProfile.id,
-          accountName: selectedProfile.accountName,
-          platform: selectedProfile.platform,
-        } : null}
         onSchedule={handleSchedulePosts}
       />
     </div>
