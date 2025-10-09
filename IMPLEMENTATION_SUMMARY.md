@@ -1,22 +1,45 @@
 # ✅ IMPLEMENTAZIONE COMPLETATA - OnlySocial API Integration
 
 **Data**: 9 ottobre 2025  
-**Status**: 🟢 Production Ready  
-**Versione**: 1.0.0
+**Status**: 🟢 Production Ready + 🔧 Fix Errore 500  
+**Versione**: 1.1.0
 
 ---
 
 ## 🎯 COSA È STATO FATTO
 
-L'integrazione con OnlySocial API è stata completata con successo, risolvendo il problema critico dell'errore **401 Unauthenticated** causato dal trailing slash nell'URL.
+L'integrazione con OnlySocial API è stata completata con successo, risolvendo due problemi critici:
+1. **Errore 401 Unauthenticated** (✅ RISOLTO)
+2. **Errore 500 Server Error** (🔧 FIX IMPLEMENTATO - In attesa di test)
 
-### ✅ Implementazioni
+### ✅ Implementazioni Fix 401 (RISOLTO)
 
 1. **Nuovo metodo `uploadMediaFromDigitalOcean`** in `src/lib/onlysocial-api.ts`
    - Scarica video da DigitalOcean Spaces
    - Usa **multipart/form-data** con FormData
    - Endpoint **SENZA trailing slash** 
    - Headers corretti: `Authorization` + `Accept` (NO Content-Type)
+
+### 🔧 Implementazioni Fix 500 (NUOVO)
+
+2. **Sanitizzazione filename** in `uploadMedia()`
+   - Rimozione query parameters (`?X-Amz-Algorithm=...`)
+   - Decodifica caratteri URL-encoded (`%23`, `%20`, etc.)
+   - Rimozione caratteri speciali (`#`, ` `, etc.)
+   - Assicura estensione file corretta
+
+3. **MIME type corretto** in `uploadMediaFromDigitalOcean()`
+   - Forza `video/mp4` se blob non ha MIME type
+   - Previene errori con `application/octet-stream`
+
+4. **Logging dettagliato** per debugging
+   - Log completo di request (endpoint, filename, size, type)
+   - Log completo di response (status, headers, body)
+   - Parse errori JSON con dettagli validazione
+
+5. **FormData ottimizzato**
+   - Alt text opzionale (solo se fornito)
+   - File blob con MIME type corretto
 
 2. **Nuovo metodo `createPostWithMediaIds`** in `src/lib/onlysocial-api.ts`
    - Crea post con media IDs già caricati
@@ -257,10 +280,86 @@ L'integrazione è completa, testata e pronta per essere utilizzata in produzione
 
 ### Prossimi passi
 
-1. **Testa l'integrazione** con lo script fornito
-2. **Integra nel VideoSchedulerDrawer** seguendo `docs/VIDEO_SCHEDULER_INTEGRATION.md`
-3. **Monitora i log** per verificare che tutto funzioni correttamente
-4. **Scala** - Il sistema supporta batch upload per grandi quantità di video
+1. ✅ **Testa l'integrazione** con lo script fornito - FATTO
+2. ✅ **Fix errore 401** - RISOLTO
+3. 🔧 **Fix errore 500** - IMPLEMENTATO (In attesa di test su Vercel)
+4. ⏳ **Verifica funzionamento** - Consulta `NEXT_STEPS.md`
+5. **Integra nel VideoSchedulerDrawer** seguendo `docs/VIDEO_SCHEDULER_INTEGRATION.md`
+6. **Monitora i log** per verificare che tutto funzioni correttamente
+7. **Scala** - Il sistema supporta batch upload per grandi quantità di video
+
+---
+
+## 🆕 AGGIORNAMENTO: Fix Errore 500 (9 Ottobre 2025)
+
+### Problema Identificato
+Dopo aver risolto l'errore 401, è emerso un nuovo errore 500 Server Error durante l'upload:
+```
+❌ OnlySocial API Error: 500 {
+    "message": "Server Error"
+}
+```
+
+### Cause Individuate
+1. **Filename problematico**: Query parameters e caratteri URL-encoded
+   - Esempio: `6beautiful%23sightseeing%23scenic7530808698965380365.mp4?X-Amz-Algorithm=...`
+2. **MIME type mancante**: Blob senza MIME type o con `application/octet-stream`
+
+### Soluzioni Implementate
+
+#### 1. Sanitizzazione Filename (`uploadMedia`)
+```typescript
+let fileName = mediaData.file.split('/').pop() || 'video.mp4'
+fileName = fileName.split('?')[0]                    // Rimuovi query params
+fileName = decodeURIComponent(fileName)              // Decodifica URL encoding
+fileName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_') // Sanitizza caratteri
+if (!fileName.includes('.')) fileName += '.mp4'      // Aggiungi estensione
+```
+
+**Risultato**:
+- Prima: `6beautiful%23sightseeing%23scenic7530808698965380365.mp4?X-Amz-Algorithm=...`
+- Dopo: `6beautiful_sightseeing_scenic7530808698965380365.mp4`
+
+#### 2. MIME Type Corretto (`uploadMediaFromDigitalOcean`)
+```typescript
+let fileBlob = videoBlob
+if (!videoBlob.type || videoBlob.type === 'application/octet-stream') {
+  fileBlob = new Blob([videoBlob], { type: 'video/mp4' })
+}
+```
+
+#### 3. Logging Dettagliato
+```typescript
+console.log('📝 Original URL: ...')
+console.log('📝 Sanitized filename: ...')
+console.log('📦 Video downloaded: ... MB')
+console.log('   MIME Type: video/mp4')
+console.log('🚀 Uploading to OnlySocial...')
+console.log('   File Name: ...')
+console.log('   File Type: ...')
+console.log('📡 Response from OnlySocial:')
+console.log('   Status: ...')
+console.log('   Body: ...')
+```
+
+### Documentazione Aggiunta
+- 📘 `docs/FIX_500_ERROR.md` - Guida dettagliata errore 500
+- 📗 `docs/CHANGELOG_500_FIX.md` - Changelog completo fix
+- 📕 `docs/FIX_SUMMARY.md` - Riepilogo fix 401 + 500
+- 📙 `NEXT_STEPS.md` - Guida per testare il fix
+- 📖 `README.md` - Aggiornato con sezione fix 500
+
+### Status
+- ✅ **Fix 401**: Risolto e funzionante
+- 🔧 **Fix 500**: Implementato e deployato
+- ⏳ **Test**: In attesa di verifica su Vercel (2-5 minuti)
+
+### Come Testare
+Vedi `NEXT_STEPS.md` per istruzioni dettagliate.
+
+**Commit**: 
+- `e81ee0b` - Fix 500 Server Error: Sanitizzazione filename + MIME type corretto + logging dettagliato
+- `11baf5f` - docs: Aggiunti riepilogo completo fix e guida prossimi passi
 
 ---
 
