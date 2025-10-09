@@ -506,14 +506,12 @@ export class OnlySocialAPI {
   }
 
   /**
-   * ✅ METODO OTTIMIZZATO: Crea post con media IDs già caricati
-   * Usa questo metodo quando hai già caricato i media con uploadMediaFromDigitalOcean
+   * ✅ METODO CORRETTO: Crea post con media IDs già caricati
+   * Usa la struttura TESTATA e VERIFICATA con OnlySocial API
    * 
    * @param accountUuid - UUID dell'account social
    * @param caption - Testo del post
-   * @param mediaIds - Array di ID dei media già caricati su OnlySocial
-   * @param scheduleDate - Data nel formato YYYY-MM-DD (opzionale)
-   * @param scheduleTime - Ora nel formato HH:MM (opzionale)
+   * @param mediaIds - Array di ID numerici dei media già caricati
    * @param postType - Tipo di post (reel, story, post)
    * @returns Oggetto con UUID del post creato
    */
@@ -521,60 +519,60 @@ export class OnlySocialAPI {
     accountUuid: string,
     caption: string,
     mediaIds: number[],
-    scheduleDate?: string,
-    scheduleTime?: string,
     postType?: string
   ): Promise<{ postUuid: string; post: unknown }> {
     console.log(`📝 Creating post with ${mediaIds.length} media IDs: ${mediaIds.join(', ')}`)
     
-    // 1. Prepara i dati del post
-    const postData: CreatePostData = {
-      accounts: [], // Verrà popolato con l'ID numerico dell'account
-      versions: [
-        {
-          account_id: 0, // Placeholder, verrà sostituito
-          is_original: true,
-          content: [
-            {
-              body: caption,
-              media: mediaIds.map(id => String(id)), // Converti gli ID in stringhe
-              url: ""
-            }
-          ],
-          options: this.buildPostOptions(postType)
-        }
-      ],
-      tags: [],
-      date: scheduleDate || null,
-      time: scheduleTime || "12:00",
-      until_date: null,
-      until_time: "",
-      repeat_frequency: null,
-      short_link_provider: null,
-      short_link_provider_id: null
+    // 1. Ottieni l'ID INTERO dell'account (NON UUID!)
+    console.log(`🔍 Getting integer ID for account UUID: ${accountUuid}`)
+    const account = await this.getAccount(accountUuid) as { id: number; uuid: string }
+    
+    if (!account || !account.id) {
+      throw new Error(`Failed to get integer ID for account ${accountUuid}`)
+    }
+    
+    console.log(`✅ Account ID: ${account.id}`)
+    
+    // 2. Converti media IDs in array di stringhe
+    const mediaIdsStrings = mediaIds.map(id => String(id))
+    
+    // 3. Prepara il payload ESATTAMENTE come richiesto da OnlySocial
+    const payload = {
+      accounts: [account.id],  // ⚠️ Array di ID INTERI!
+      content: caption,        // Stringa semplice per il root
+      media_ids: mediaIdsStrings,
+      versions: [{
+        account_id: account.id,
+        content: [caption],    // ⚠️ ARRAY di stringhe per versions!
+        media_ids: mediaIdsStrings,
+        is_original: true      // ⚠️ OBBLIGATORIO!
+      }],
+      post_type: postType || 'reel'
     }
 
-    // 2. Ottieni l'account per avere l'ID numerico
-    const account = await this.getAccount(accountUuid) as { id: number }
-    
-    postData.accounts = [account.id]
-    postData.versions[0].account_id = account.id
+    console.log('📤 Sending post to OnlySocial API with payload:', JSON.stringify(payload, null, 2))
 
-    // 3. Crea il post
-    console.log('📤 Sending post to OnlySocial API...')
-    const result = await this.createPost(postData) as { data?: { uuid: string } }
+    // 4. Crea il post (NO trailing slash!)
+    const result = await this.makeRequest('/posts', 'POST', payload) as { uuid?: string; id?: string }
+    
+    const postUuid = result.uuid || result.id || ''
+    
+    if (!postUuid) {
+      throw new Error('Post created but no UUID returned')
+    }
     
     console.log('✅ Post created successfully!')
-    console.log(`   Post UUID: ${result.data?.uuid || 'N/A'}`)
+    console.log(`   Post UUID: ${postUuid}`)
     
     return {
-      postUuid: result.data?.uuid || '',
+      postUuid,
       post: result
     }
   }
 
   /**
    * Helper method to schedule a post at specific date/time
+   * Usa la sintassi TESTATA con OnlySocial API
    */
   async schedulePostAt(
     postUuid: string,
@@ -584,16 +582,26 @@ export class OnlySocialAPI {
     hour: number,
     minute: number
   ): Promise<unknown> {
-    // Formatta data e ora per OnlySocial API
-    const date = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-    const time = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`
+    console.log(`⏰ Scheduling post ${postUuid} for ${year}-${month}-${day} ${hour}:${minute}`)
     
-    // Per schedulare ad una data specifica, usiamo postNow: false
-    // e aggiorniamo il post con la data corretta
-    return this.makeRequest(`/posts/schedule/${postUuid}`, 'POST', {
+    // Formatta: "YYYY-MM-DD HH:MM:SS"
+    const scheduleTime = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')} ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00`
+    
+    console.log(`📅 Schedule time: ${scheduleTime}`)
+    
+    // Payload ESATTAMENTE come da documentazione OnlySocial testata
+    const payload = {
       postNow: false,
-      scheduled_at: `${date} ${time}:00`
-    })
+      scheduleTime: scheduleTime
+    }
+    
+    console.log(`📤 Scheduling with payload:`, JSON.stringify(payload, null, 2))
+    
+    const result = await this.makeRequest(`/posts/schedule/${postUuid}`, 'POST', payload)
+    
+    console.log('✅ Post scheduled successfully!')
+    
+    return result
   }
 
   /**
@@ -666,13 +674,11 @@ export class OnlySocialAPI {
     try {
       console.log(`📝 Creating and scheduling post with ${mediaIds.length} media IDs`)
       
-      // Crea il post con gli ID dei media già caricati
+      // Crea il post con gli ID dei media già caricati (nuova firma semplificata)
       const { postUuid } = await this.createPostWithMediaIds(
         accountUuid,
         caption,
         mediaIds,
-        `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
-        `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`,
         postType
       )
 
