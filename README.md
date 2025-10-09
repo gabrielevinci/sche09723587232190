@@ -1,6 +1,18 @@
 # 📱 Social Media Scheduler - OnlySocial Integration
 
-Un sistema completo per programmare e pubblicare video sui social media tramite OnlySocial API.
+Un sistema completo per programmare e pubblicare video sui social media tramite OnlySocial API con **Smart Scheduling** per ottimizzare lo spazio di storage.
+
+---
+
+## 🆕 SMART SCHEDULING - Ottimizzazione Spazio OnlySocial
+
+**Problema**: OnlySocial offre solo 20GB di spazio per i video.
+
+**Soluzione**: Sistema intelligente che carica i video su OnlySocial solo quando necessario:
+- 🚀 **Video immediati** (< 1 ora): Caricati subito su DigitalOcean + OnlySocial
+- ⏰ **Video futuri** (> 1 ora): Caricati solo su DigitalOcean, poi processati automaticamente dal cron job 1 ora prima della pubblicazione
+
+📚 **Guida completa**: [docs/CRON_SETUP_GUIDE.md](./docs/CRON_SETUP_GUIDE.md)
 
 ---
 
@@ -65,12 +77,24 @@ Visita `http://localhost:3000`
 
 ## 📋 Caratteristiche
 
+### 🎯 Core Features
+✅ **Smart Scheduling** - Caricamento intelligente dei video  
 ✅ Upload video su DigitalOcean Spaces  
 ✅ Integrazione completa con OnlySocial API  
-✅ **FIX Errore 401 implementato** 🔧  
+✅ **Fix Errori 401 e 500** implementati 🔧  
 ✅ Programmazione post con calendario  
 ✅ Supporto Reel, Story e Post  
 ✅ Gestione multipli account social  
+
+### 🤖 Smart Scheduling System
+✅ Caricamento video immediato (< 1 ora) su DO + OnlySocial  
+✅ Caricamento video futuro (> 1 ora) solo su DO  
+✅ Cron job automatico processa video 1 ora prima  
+✅ Database tracking con stati (PENDING → SCHEDULED → PUBLISHED)  
+✅ Retry automatico su errori (max 3 tentativi)  
+✅ Ottimizzazione spazio OnlySocial (20GB limit)  
+
+### 👥 Admin Features
 ✅ Dashboard amministrazione  
 ✅ Sistema autenticazione NextAuth  
 ✅ Database PostgreSQL con Prisma  

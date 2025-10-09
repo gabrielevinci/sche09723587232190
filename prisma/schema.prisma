@@ -58,3 +58,56 @@ model AdminAssociation {
   @@unique([userId, socialAccountId])
   @@map("admin_associations")
 }
+
+// Enum per lo stato del post schedulato
+enum PostStatus {
+  PENDING           // In attesa di essere processato
+  VIDEO_UPLOADED_DO // Video caricato su DigitalOcean
+  VIDEO_UPLOADED_OS // Video caricato su OnlySocial
+  SCHEDULED         // Post schedulato su OnlySocial
+  PUBLISHED         // Post pubblicato
+  FAILED            // Errore durante il processo
+  CANCELLED         // Cancellato dall'utente
+}
+
+// Tabella per i post schedulati
+model ScheduledPost {
+  id                    String      @id @default(cuid())
+  
+  // Info utente e account
+  userId                String
+  socialAccountId       String
+  
+  // Info video
+  videoUrl              String      // URL su DigitalOcean Spaces
+  videoFilename         String      // Nome del file originale
+  videoSize             Int         // Dimensione in bytes
+  
+  // Info OnlySocial
+  onlySocialMediaId     String?     // ID del media su OnlySocial (quando caricato)
+  onlySocialPostId      String?     // ID del post su OnlySocial (quando schedulato)
+  onlySocialMediaUrl    String?     // URL del media su OnlySocial storage
+  
+  // Info post
+  caption               String      @db.Text
+  postType              String      // reel, story, post
+  scheduledFor          DateTime    // Data e ora di pubblicazione
+  
+  // Stato e metadata
+  status                PostStatus  @default(PENDING)
+  errorMessage          String?     @db.Text
+  retryCount            Int         @default(0)
+  
+  // Timestamps
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
+  uploadedToOSAt        DateTime?   // Quando è stato caricato su OnlySocial
+  scheduledAt           DateTime?   // Quando è stato schedulato su OnlySocial
+  publishedAt           DateTime?   // Quando è stato pubblicato
+  
+  @@index([status])
+  @@index([scheduledFor])
+  @@index([userId])
+  @@index([socialAccountId])
+  @@map("scheduled_posts")
+}
