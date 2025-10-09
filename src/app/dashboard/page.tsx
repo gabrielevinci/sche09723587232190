@@ -220,32 +220,31 @@ export default function DashboardPage() {
       throw new Error('Nessun profilo selezionato')
     }
 
-    // Prepara i dati per l'API
-    const posts = rows.map(row => {
+    // Prepara i dati per l'API Smart Scheduling
+    const videos = rows.map(row => {
       const video = videosToSchedule.find(v => v.id === row.videoId)
+      
+      // Crea la data/ora schedulata in formato ISO
+      const scheduledDate = new Date(row.year, row.month - 1, row.day, row.hour, row.minute)
+      
       return {
+        socialAccountId: selectedProfile.id,
         videoUrl: video?.url || '',
+        videoFilename: video?.name || 'video.mp4',
+        videoSize: 0, // Placeholder - il backend potrebbe calcolare questo
         caption: row.caption,
-        year: row.year,
-        month: row.month,
-        day: row.day,
-        hour: row.hour,
-        minute: row.minute,
         postType: row.postType || 'post',
+        scheduledFor: scheduledDate.toISOString(),
       }
     })
 
-    // Chiama l'API di scheduling
-    const response = await fetch('/api/schedule/posts', {
+    // Chiama l'API di Smart Scheduling
+    const response = await fetch('/api/schedule/smart-schedule', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        profileId: selectedProfile.id,
-        accountUuid: selectedProfile.accountId,
-        posts,
-      }),
+      body: JSON.stringify(videos),
     })
 
     if (!response.ok) {
@@ -254,10 +253,23 @@ export default function DashboardPage() {
     }
 
     const result = await response.json()
-    console.log('Scheduling completato:', result)
+    console.log('📊 Smart Scheduling completato:', result)
     
-    if (result.errors > 0) {
-      throw new Error(result.message)
+    // Mostra un messaggio informativo all'utente
+    if (result.summary) {
+      const { uploadedNow, savedForLater, errors } = result.summary
+      let message = `✅ Scheduling completato!\n\n`
+      if (uploadedNow > 0) {
+        message += `📤 ${uploadedNow} video caricati immediatamente su OnlySocial\n`
+      }
+      if (savedForLater > 0) {
+        message += `⏰ ${savedForLater} video salvati per caricamento futuro (1 ora prima)\n`
+      }
+      if (errors > 0) {
+        message += `❌ ${errors} errori riscontrati`
+        throw new Error(message)
+      }
+      alert(message)
     }
 
     // Chiudi il drawer
