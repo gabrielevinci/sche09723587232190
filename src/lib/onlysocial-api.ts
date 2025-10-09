@@ -129,22 +129,42 @@ export class OnlySocialAPI {
    * Se mediaData.file è un URL, scarica il file e caricalo come binario
    */
   async uploadMedia(mediaData: MediaFile): Promise<unknown> {
-    // Se file è un URL, scaricalo prima e caricalo come binario
+    // Se file è un URL, scaricalo prima e caricalo come binario usando il metodo corretto
     if (typeof mediaData.file === 'string' && mediaData.file.startsWith('http')) {
-      return this.uploadMediaFromUrl(mediaData.file, mediaData.alt_text)
+      // Estrai il nome del file dall'URL
+      const fileName = mediaData.file.split('/').pop() || 'video.mp4'
+      
+      // ✅ USA IL METODO CORRETTO che scarica e carica con FormData
+      const result = await this.uploadMediaFromDigitalOcean(
+        mediaData.file,
+        fileName,
+        mediaData.alt_text
+      )
+      
+      // Ritorna nel formato compatibile con il vecchio metodo
+      return { data: result }
     }
     
-    // Altrimenti usa il metodo standard JSON
+    // Altrimenti usa il metodo standard JSON (per compatibilità legacy)
     return this.makeRequest('/media/', 'POST', mediaData)
   }
 
   /**
+   * @deprecated Questo metodo NON funziona - causa 401 Unauthenticated
+   * Usa uploadMediaFromDigitalOcean() invece
+   * 
+   * PROBLEMA: OnlySocial non accetta URL di video direttamente.
+   * Il trailing slash in /media/ causa redirect e perdita del token.
+   * 
    * Upload media from URL - OnlySocial scarica il file dall'URL fornito
    */
   private async uploadMediaFromUrl(videoUrl: string, altText?: string): Promise<unknown> {
-    console.log(`  � Sending video URL to OnlySocial: ${videoUrl.substring(0, 80)}...`)
+    console.log(`  ⚠️ WARNING: uploadMediaFromUrl is deprecated!`)
+    console.log(`  📥 Use uploadMediaFromDigitalOcean instead`)
+    console.log(`  🎬 Sending video URL to OnlySocial: ${videoUrl.substring(0, 80)}...`)
     
     try {
+      // ❌ QUESTO NON FUNZIONA - OnlySocial non accetta URL
       // Invia semplicemente l'URL - OnlySocial scaricherà il video da solo
       const result = await this.makeRequest('/media/', 'POST', {
         file: videoUrl,
@@ -157,6 +177,7 @@ export class OnlySocialAPI {
       return { data: result }
     } catch (error) {
       console.error('  ✗ Error uploading media URL:', error)
+      console.error('  💡 Try using uploadMediaFromDigitalOcean() instead')
       throw error
     }
   }

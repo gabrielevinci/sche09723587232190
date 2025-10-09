@@ -4,7 +4,17 @@ Un sistema completo per programmare e pubblicare video sui social media tramite 
 
 ---
 
-## 🚀 Quick Start
+## � ERRORE 401 RISOLTO!
+
+**Se stai ricevendo errore 401 Unauthenticated**, le correzioni sono state implementate!
+
+🎯 **Soluzione**: Usa `uploadMediaFromDigitalOcean()` invece di inviare URL direttamente  
+📚 **Guida completa**: [docs/FIX_401_ERROR.md](./docs/FIX_401_ERROR.md)  
+🧪 **Test fix**: `node scripts/test-401-fix.js`
+
+---
+
+## �🚀 Quick Start
 
 ```bash
 # 1. Installa dipendenze
@@ -29,6 +39,7 @@ Visita `http://localhost:3000`
 
 ✅ Upload video su DigitalOcean Spaces  
 ✅ Integrazione completa con OnlySocial API  
+✅ **FIX Errore 401 implementato** 🔧  
 ✅ Programmazione post con calendario  
 ✅ Supporto Reel, Story e Post  
 ✅ Gestione multipli account social  
@@ -44,10 +55,11 @@ L'integrazione con OnlySocial API è stata implementata con successo e risolve i
 
 ### Documenti Chiave
 
-1. **[QUICK_START.md](./QUICK_START.md)** - Inizio rapido
-2. **[IMPLEMENTATION_SUMMARY.md](./IMPLEMENTATION_SUMMARY.md)** - Riepilogo completo
-3. **[docs/ONLYSOCIAL_INTEGRATION_GUIDE.md](./docs/ONLYSOCIAL_INTEGRATION_GUIDE.md)** - Guida dettagliata
-4. **[docs/VIDEO_SCHEDULER_INTEGRATION.md](./docs/VIDEO_SCHEDULER_INTEGRATION.md)** - Integrazione componenti
+1. **[docs/FIX_401_ERROR.md](./docs/FIX_401_ERROR.md)** - 🔧 **Risoluzione errore 401** (NUOVO!)
+2. **[QUICK_START.md](./QUICK_START.md)** - Inizio rapido
+3. **[IMPLEMENTATION_SUMMARY.md](./IMPLEMENTATION_SUMMARY.md)** - Riepilogo completo
+4. **[docs/ONLYSOCIAL_INTEGRATION_GUIDE.md](./docs/ONLYSOCIAL_INTEGRATION_GUIDE.md)** - Guida dettagliata
+5. **[docs/VIDEO_SCHEDULER_INTEGRATION.md](./docs/VIDEO_SCHEDULER_INTEGRATION.md)** - Integrazione componenti
 5. **[examples/complete-integration-example.tsx](./examples/complete-integration-example.tsx)** - Esempio completo
 
 ### Utilizzo Base
