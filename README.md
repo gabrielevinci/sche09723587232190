@@ -4,6 +4,34 @@ Un sistema completo per programmare e pubblicare video sui social media tramite 
 
 ---
 
+## 🔧 ULTIMO FIX: Errore 500 Server Error
+
+**Se stai ricevendo errore 500 Server Error**, le correzioni sono state implementate!
+
+🎯 **Soluzione**: 
+- ✅ Filename sanitizzato (rimozione query params e caratteri speciali)
+- ✅ MIME type corretto per i video
+- ✅ Logging dettagliato per debugging
+
+📚 **Guida completa**: [docs/FIX_500_ERROR.md](./docs/FIX_500_ERROR.md)  
+📝 **Changelog**: [docs/CHANGELOG_500_FIX.md](./docs/CHANGELOG_500_FIX.md)
+
+---
+
+## ✅ ERRORE 401 RISOLTO!
+
+**Se stai ricevendo errore 401 Unauthenticated**, le correzioni sono state implementate!
+
+🎯 **Soluzione**: Usa `uploadMediaFromDigitalOcean()` invece di inviare URL direttamente  
+📚 **Guida completa**: [docs/FIX_401_ERROR.md](./docs/FIX_401_ERROR.md)  
+🧪 **Test fix**: `node scripts/test-401-fix.js`
+
+---ia Scheduler - OnlySocial Integration
+
+Un sistema completo per programmare e pubblicare video sui social media tramite OnlySocial API.
+
+---
+
 ## � ERRORE 401 RISOLTO!
 
 **Se stai ricevendo errore 401 Unauthenticated**, le correzioni sono state implementate!

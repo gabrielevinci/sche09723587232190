@@ -131,8 +131,25 @@ export class OnlySocialAPI {
   async uploadMedia(mediaData: MediaFile): Promise<unknown> {
     // Se file è un URL, scaricalo prima e caricalo come binario usando il metodo corretto
     if (typeof mediaData.file === 'string' && mediaData.file.startsWith('http')) {
-      // Estrai il nome del file dall'URL
-      const fileName = mediaData.file.split('/').pop() || 'video.mp4'
+      // Estrai il nome del file dall'URL e sanitizzalo
+      let fileName = mediaData.file.split('/').pop() || 'video.mp4'
+      
+      // Rimuovi query parameters (tutto dopo ?)
+      fileName = fileName.split('?')[0]
+      
+      // Decodifica caratteri URL-encoded (%20, %23, etc.)
+      fileName = decodeURIComponent(fileName)
+      
+      // Sanitizza il nome del file: rimuovi caratteri speciali problematici
+      fileName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_')
+      
+      // Assicurati che ci sia un'estensione
+      if (!fileName.includes('.')) {
+        fileName += '.mp4'
+      }
+      
+      console.log(`📝 Original URL: ${mediaData.file.substring(0, 100)}...`)
+      console.log(`📝 Sanitized filename: ${fileName}`)
       
       // ✅ USA IL METODO CORRETTO che scarica e carica con FormData
       const result = await this.uploadMediaFromDigitalOcean(
@@ -220,17 +237,35 @@ export class OnlySocialAPI {
       const videoBlob = await videoResponse.blob()
       const videoSizeMB = (videoBlob.size / 1024 / 1024).toFixed(2)
       console.log(`📦 Video downloaded: ${videoSizeMB} MB`)
+      console.log(`   MIME Type: ${videoBlob.type}`)
       
       // Step 3: Crea FormData per multipart/form-data
       const formData = new FormData()
-      formData.append('file', videoBlob, videoName)
-      formData.append('alt_text', altText || videoName)
+      
+      // ⚠️ IMPORTANTE: Assicurati che il blob abbia il MIME type corretto
+      // Se il blob non ha il MIME type, creane uno con il tipo corretto
+      let fileBlob = videoBlob
+      if (!videoBlob.type || videoBlob.type === 'application/octet-stream') {
+        console.log('   ⚠️ Blob has no MIME type, setting to video/mp4')
+        fileBlob = new Blob([videoBlob], { type: 'video/mp4' })
+      }
+      
+      formData.append('file', fileBlob, videoName)
+      
+      // ✅ SOLO se altText è fornito, aggiungilo
+      if (altText) {
+        formData.append('alt_text', altText)
+      }
       
       // ⚠️ IMPORTANTE: URL SENZA trailing slash!
       const apiUrl = `${this.baseUrl}/${this.config.workspaceUuid}/media`
       
       console.log('🚀 Uploading to OnlySocial...')
       console.log(`   Endpoint: ${apiUrl}`)
+      console.log(`   File Name: ${videoName}`)
+      console.log(`   File Size: ${videoSizeMB} MB`)
+      console.log(`   File Type: ${fileBlob.type}`)
+      console.log(`   Alt Text: ${altText || '(none)'}`)
       
       // Step 4: Invia a OnlySocial con FormData
       const response = await fetch(apiUrl, {
@@ -245,6 +280,11 @@ export class OnlySocialAPI {
       
       // Step 5: Gestisci la risposta
       const responseText = await response.text()
+      
+      console.log('📡 Response from OnlySocial:')
+      console.log(`   Status: ${response.status} ${response.statusText}`)
+      console.log(`   Headers:`, Object.fromEntries(response.headers.entries()))
+      console.log(`   Body: ${responseText.substring(0, 500)}${responseText.length > 500 ? '...' : ''}`)
       
       // OnlySocial risponde con 200 o 201 in caso di successo
       if (response.status === 200 || response.status === 201) {
@@ -269,7 +309,25 @@ export class OnlySocialAPI {
       } else {
         // Errore da OnlySocial
         console.error('❌ OnlySocial API Error:', response.status, responseText)
-        throw new Error(`OnlySocial API Error: ${response.status} - ${responseText}`)
+        
+        // Prova a parsare l'errore come JSON per dettagli
+        let errorDetails = responseText
+        try {
+          const errorJson = JSON.parse(responseText)
+          errorDetails = JSON.stringify(errorJson, null, 2)
+          
+          // Se c'è un messaggio di errore specifico, loggalo
+          if (errorJson.message) {
+            console.error(`   Error Message: ${errorJson.message}`)
+          }
+          if (errorJson.errors) {
+            console.error(`   Validation Errors:`, errorJson.errors)
+          }
+        } catch {
+          // Non è JSON, usa il testo grezzo
+        }
+        
+        throw new Error(`OnlySocial API Error: ${response.status} - ${errorDetails}`)
       }
       
     } catch (error) {
