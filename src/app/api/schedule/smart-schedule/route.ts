@@ -148,10 +148,13 @@ export async function POST(request: NextRequest) {
         
         console.log(`📝 Creating post for account ID: ${socialAccount.accountId}`)
         
-        const postResult = await onlySocialApi.createAndSchedulePost(
-          socialAccount.accountId, // ✅ Usa accountId di OnlySocial, non il CUID del database
+        // ✅ Usa il media ID già caricato, NON ri-caricare il video
+        const mediaIdNumber = typeof mediaId === 'string' ? parseInt(mediaId, 10) : mediaId as number
+        
+        const postResult = await onlySocialApi.createAndSchedulePostWithMediaIds(
+          socialAccount.accountId, // UUID dell'account OnlySocial
           video.caption,
-          [mediaData.url],
+          [mediaIdNumber], // Array di ID dei media già caricati
           year,
           month,
           day,

@@ -638,6 +638,64 @@ export class OnlySocialAPI {
   }
 
   /**
+   * ✅ METODO OTTIMIZZATO: Crea e schedula post con media IDs già caricati
+   * Usa questo metodo quando hai già caricato i media per evitare upload duplicati
+   * 
+   * @param accountUuid - UUID dell'account social
+   * @param caption - Testo del post
+   * @param mediaIds - Array di ID dei media già caricati su OnlySocial
+   * @param year - Anno
+   * @param month - Mese (1-12)
+   * @param day - Giorno del mese
+   * @param hour - Ora (0-23)
+   * @param minute - Minuto (0-59)
+   * @param postType - Tipo di post (reel, story, post)
+   * @returns Oggetto con success, postUuid e scheduledAt
+   */
+  async createAndSchedulePostWithMediaIds(
+    accountUuid: string,
+    caption: string,
+    mediaIds: number[],
+    year: number,
+    month: number,
+    day: number,
+    hour: number,
+    minute: number,
+    postType?: string
+  ): Promise<{ success: boolean; postUuid: string; scheduledAt: string }> {
+    try {
+      console.log(`📝 Creating and scheduling post with ${mediaIds.length} media IDs`)
+      
+      // Crea il post con gli ID dei media già caricati
+      const { postUuid } = await this.createPostWithMediaIds(
+        accountUuid,
+        caption,
+        mediaIds,
+        `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
+        `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`,
+        postType
+      )
+
+      // Schedula il post
+      console.log(`⏰ Scheduling post ${postUuid} for ${year}-${month}-${day} ${hour}:${minute}`)
+      await this.schedulePostAt(postUuid, year, month, day, hour, minute)
+
+      const scheduledAt = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')} ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00`
+
+      console.log(`✅ Post scheduled successfully at ${scheduledAt}`)
+
+      return {
+        success: true,
+        postUuid,
+        scheduledAt
+      }
+    } catch (error) {
+      console.error('Error creating and scheduling post with media IDs:', error)
+      throw error
+    }
+  }
+
+  /**
    * Helper method to publish a post immediately
    */
   async publishPostNow(postUuid: string): Promise<unknown> {
