@@ -129,8 +129,10 @@ export async function POST(request: NextRequest) {
         const hour = scheduledDate.getHours()
         const minute = scheduledDate.getMinutes()
         
+        console.log(`📝 Creating post for account ID: ${socialAccount.accountId}`)
+        
         const postResult = await onlySocialApi.createAndSchedulePost(
-          socialAccount.id, // account ID
+          socialAccount.accountId, // ✅ Usa accountId di OnlySocial, non il CUID del database
           video.caption,
           [mediaData.url],
           year,

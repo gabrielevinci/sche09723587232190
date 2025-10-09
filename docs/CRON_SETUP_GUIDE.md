@@ -77,7 +77,7 @@ Esempio output: `7a3f9c2e1d4b6a8f5e3c9d7b2a4f6e8c1d3b5a7f9e2c4d6a8b1f3e5c7d9a2b4
 4. Aggiungi:
 
 ```env
-CRON_SECRET=7a3f9c2e1d4b6a8f5e3c9d7b2a4f6e8c1d3b5a7f9e2c4d6a8b1f3e5c7d9a2b4f6
+CRON_SECRET=b0d133f0a9cf8ecabee95b1154e2f53bbd440fe34f057eb6dd1f117fc6714ba2
 ```
 
 5. Salva e Redeploy
@@ -95,7 +95,7 @@ CRON_SECRET=7a3f9c2e1d4b6a8f5e3c9d7b2a4f6e8c1d3b5a7f9e2c4d6a8b1f3e5c7d9a2b4f6
    HTTP Method: POST
    
    Headers:
-   Authorization: Bearer 7a3f9c2e1d4b6a8f5e3c9d7b2a4f6e8c1d3b5a7f9e2c4d6a8b1f3e5c7d9a2b4f6
+   Authorization: Bearer b0d133f0a9cf8ecabee95b1154e2f53bbd440fe34f057eb6dd1f117fc6714ba2
    
    Schedule: */10 * * * *  (Ogni 10 minuti)
    
