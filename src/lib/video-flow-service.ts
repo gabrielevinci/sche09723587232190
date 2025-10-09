@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 /**
  * Video Flow Service
  * Gestisce il flusso dei video tra DigitalOcean Spaces e OnlySocial

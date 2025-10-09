@@ -76,10 +76,17 @@ export async function POST(request: NextRequest) {
       workspaceUuid: workspaceUuid
     })
 
+    interface VideoError {
+      videoId: string
+      filename: string
+      error: string
+      retryCount: number
+    }
+
     const results = {
       processed: 0,
       failed: 0,
-      errors: [] as any[]
+      errors: [] as VideoError[]
     }
 
     // 4. Processa ogni video
@@ -94,7 +101,13 @@ export async function POST(request: NextRequest) {
           alt_text: video.caption
         })
         
-        const mediaData = mediaResult.data as any
+        interface MediaData {
+          id?: number
+          uuid?: string
+          url: string
+        }
+        
+        const mediaData = (mediaResult as { data: MediaData }).data
         const mediaId = mediaData.id || mediaData.uuid
         
         console.log(`✅ Video uploaded to OnlySocial, ID: ${mediaId}`)
@@ -150,7 +163,8 @@ export async function POST(request: NextRequest) {
         results.processed++
         console.log(`✅ Video ${video.id} processed successfully`)
         
-      } catch (error: any) {
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error'
         console.error(`❌ Error processing video ${video.id}:`, error)
         
         // Aggiorna con errore
@@ -161,7 +175,7 @@ export async function POST(request: NextRequest) {
           where: { id: video.id },
           data: {
             status: retryCount >= maxRetries ? 'FAILED' : 'VIDEO_UPLOADED_DO',
-            errorMessage: error.message,
+            errorMessage: errorMessage,
             retryCount: retryCount
           }
         })
@@ -170,7 +184,7 @@ export async function POST(request: NextRequest) {
         results.errors.push({
           videoId: video.id,
           filename: video.videoFilename,
-          error: error.message,
+          error: errorMessage,
           retryCount: retryCount
         })
       }
@@ -190,10 +204,11 @@ export async function POST(request: NextRequest) {
       errors: results.errors
     })
 
-  } catch (error: any) {
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Internal server error'
     console.error('❌ Cron job error:', error)
     return NextResponse.json(
-      { error: error.message || 'Internal server error' },
+      { error: errorMessage },
       { status: 500 }
     )
   }

@@ -87,10 +87,24 @@ export async function POST(request: NextRequest) {
       workspaceUuid: workspaceUuid
     })
 
+    interface UploadedVideo {
+      id: string
+      filename: string
+      scheduledFor: string
+      onlySocialMediaId?: string
+      onlySocialPostId?: string
+      willUploadAt?: string
+    }
+
+    interface VideoError {
+      filename: string
+      error: string
+    }
+
     const results = {
-      uploadedNow: [] as any[],
-      savedForLater: [] as any[],
-      errors: [] as any[]
+      uploadedNow: [] as UploadedVideo[],
+      savedForLater: [] as UploadedVideo[],
+      errors: [] as VideoError[]
     }
 
     // 6. Processa video da caricare ORA
@@ -104,7 +118,13 @@ export async function POST(request: NextRequest) {
           alt_text: video.caption
         })
         
-        const mediaData = mediaResult.data as any
+        interface MediaData {
+          id?: number
+          uuid?: string
+          url: string
+        }
+        
+        const mediaData = (mediaResult as { data: MediaData }).data
         const mediaId = mediaData.id || mediaData.uuid
         
         console.log(`✅ Video uploaded to OnlySocial, ID: ${mediaId}`)
@@ -166,11 +186,12 @@ export async function POST(request: NextRequest) {
           id: scheduledPost.id,
           filename: video.videoFilename,
           scheduledFor: video.scheduledFor,
-          onlySocialMediaId: mediaId,
+          onlySocialMediaId: String(mediaId),
           onlySocialPostId: postId
         })
         
-      } catch (error: any) {
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error'
         console.error(`❌ Error processing video ${video.videoFilename}:`, error)
         
         // Salva nel database con stato FAILED
@@ -185,13 +206,13 @@ export async function POST(request: NextRequest) {
             postType: video.postType,
             scheduledFor: new Date(video.scheduledFor),
             status: 'FAILED',
-            errorMessage: error.message
+            errorMessage: errorMessage
           }
         })
         
         results.errors.push({
           filename: video.videoFilename,
-          error: error.message
+          error: errorMessage
         })
       }
     }
@@ -222,11 +243,12 @@ export async function POST(request: NextRequest) {
           willUploadAt: new Date(new Date(video.scheduledFor).getTime() - 60 * 60 * 1000).toISOString()
         })
         
-      } catch (error: any) {
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error'
         console.error(`❌ Error saving video ${video.videoFilename}:`, error)
         results.errors.push({
           filename: video.videoFilename,
-          error: error.message
+          error: errorMessage
         })
       }
     }
@@ -248,10 +270,11 @@ export async function POST(request: NextRequest) {
       results
     })
 
-  } catch (error: any) {
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Internal server error'
     console.error('❌ Smart scheduling error:', error)
     return NextResponse.json(
-      { error: error.message || 'Internal server error' },
+      { error: errorMessage },
       { status: 500 }
     )
   }
