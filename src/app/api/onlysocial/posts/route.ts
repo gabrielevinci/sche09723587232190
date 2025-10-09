@@ -138,8 +138,6 @@ export async function POST(request: NextRequest) {
         accountUuid,
         content,
         finalMediaIds,
-        scheduleDate,
-        scheduleTime,
         postType
       )
       
@@ -152,8 +150,6 @@ export async function POST(request: NextRequest) {
         accountUuid,
         content,
         [],
-        scheduleDate,
-        scheduleTime,
         postType
       )
       return NextResponse.json(result, { status: 201 })
