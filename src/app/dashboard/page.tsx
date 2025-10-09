@@ -224,9 +224,6 @@ export default function DashboardPage() {
     const videos = rows.map(row => {
       const video = videosToSchedule.find(v => v.id === row.videoId)
       
-      // Crea la data/ora schedulata in formato ISO
-      const scheduledDate = new Date(row.year, row.month - 1, row.day, row.hour, row.minute)
-      
       return {
         socialAccountId: selectedProfile.id,
         videoUrl: video?.url || '',
@@ -234,7 +231,12 @@ export default function DashboardPage() {
         videoSize: 0, // Placeholder - il backend potrebbe calcolare questo
         caption: row.caption,
         postType: row.postType || 'post',
-        scheduledFor: scheduledDate.toISOString(),
+        // Passa i componenti separati per evitare conversioni UTC
+        year: row.year,
+        month: row.month,
+        day: row.day,
+        hour: row.hour,
+        minute: row.minute,
       }
     })
 

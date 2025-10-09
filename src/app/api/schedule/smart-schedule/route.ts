@@ -21,7 +21,12 @@ interface ScheduleVideoRequest {
   videoSize: number // bytes
   caption: string
   postType: 'reel' | 'story' | 'post'
-  scheduledFor: string // ISO date string
+  // Componenti data/ora in ora locale italiana (NO UTC)
+  year: number
+  month: number
+  day: number
+  hour: number
+  minute: number
 }
 
 export async function POST(request: NextRequest) {
@@ -60,7 +65,8 @@ export async function POST(request: NextRequest) {
     const videosToUploadLater: ScheduleVideoRequest[] = []
     
     for (const video of videos) {
-      const scheduledDate = new Date(video.scheduledFor)
+      // Crea data in ora locale italiana (NO UTC)
+      const scheduledDate = new Date(video.year, video.month - 1, video.day, video.hour, video.minute)
       
       if (scheduledDate <= oneHourFromNow) {
         // Pubblica entro 1 ora → carica su OnlySocial ORA
@@ -139,14 +145,18 @@ export async function POST(request: NextRequest) {
         }
         
         // Step 3: Schedula post su OnlySocial
-        const scheduledDate = new Date(video.scheduledFor)
-        const year = scheduledDate.getFullYear()
-        const month = scheduledDate.getMonth() + 1 // JS months are 0-indexed
-        const day = scheduledDate.getDate()
-        const hour = scheduledDate.getHours()
-        const minute = scheduledDate.getMinutes()
+        // Usa direttamente i componenti passati dal frontend (ora locale italiana)
+        const year = video.year
+        const month = video.month
+        const day = video.day
+        const hour = video.hour
+        const minute = video.minute
+        
+        // Crea Date per il database
+        const scheduledDate = new Date(year, month - 1, day, hour, minute)
         
         console.log(`📝 Creating post for account ID: ${socialAccount.accountId}`)
+        console.log(`⏰ Scheduled for: ${year}-${month}-${day} ${hour}:${minute} (local time)`)
         
         // ✅ Usa il media ID già caricato, NON ri-caricare il video
         const mediaIdNumber = typeof mediaId === 'string' ? parseInt(mediaId, 10) : mediaId as number
@@ -190,7 +200,7 @@ export async function POST(request: NextRequest) {
         results.uploadedNow.push({
           id: scheduledPost.id,
           filename: video.videoFilename,
-          scheduledFor: video.scheduledFor,
+          scheduledFor: `${year}-${month}-${day} ${hour}:${minute}`,
           onlySocialMediaId: String(mediaId),
           onlySocialPostId: postId
         })
@@ -200,6 +210,7 @@ export async function POST(request: NextRequest) {
         console.error(`❌ Error processing video ${video.videoFilename}:`, error)
         
         // Salva nel database con stato FAILED
+        const scheduledDate = new Date(video.year, video.month - 1, video.day, video.hour, video.minute)
         await prisma.scheduledPost.create({
           data: {
             userId: user.id,
@@ -209,7 +220,7 @@ export async function POST(request: NextRequest) {
             videoSize: video.videoSize,
             caption: video.caption,
             postType: video.postType,
-            scheduledFor: new Date(video.scheduledFor),
+            scheduledFor: scheduledDate,
             status: 'FAILED',
             errorMessage: errorMessage
           }
@@ -227,6 +238,9 @@ export async function POST(request: NextRequest) {
       try {
         console.log(`💾 Saving video for later upload: ${video.videoFilename}`)
         
+        const scheduledDate = new Date(video.year, video.month - 1, video.day, video.hour, video.minute)
+        const willUploadAt = new Date(scheduledDate.getTime() - 60 * 60 * 1000) // 1 ora prima
+        
         const scheduledPost = await prisma.scheduledPost.create({
           data: {
             userId: user.id,
@@ -236,7 +250,7 @@ export async function POST(request: NextRequest) {
             videoSize: video.videoSize,
             caption: video.caption,
             postType: video.postType,
-            scheduledFor: new Date(video.scheduledFor),
+            scheduledFor: scheduledDate,
             status: 'VIDEO_UPLOADED_DO' // Video su DigitalOcean, non ancora su OnlySocial
           }
         })
@@ -244,8 +258,8 @@ export async function POST(request: NextRequest) {
         results.savedForLater.push({
           id: scheduledPost.id,
           filename: video.videoFilename,
-          scheduledFor: video.scheduledFor,
-          willUploadAt: new Date(new Date(video.scheduledFor).getTime() - 60 * 60 * 1000).toISOString()
+          scheduledFor: `${video.year}-${video.month}-${video.day} ${video.hour}:${video.minute}`,
+          willUploadAt: willUploadAt.toISOString()
         })
         
       } catch (error) {
