@@ -187,18 +187,19 @@ export async function POST(request: NextRequest) {
           data: {
             userId: user.id,
             socialAccountId: video.socialAccountId,
-            videoUrl: video.videoUrl,
-            videoFilename: video.videoFilename,
-            videoSize: video.videoSize,
-            onlySocialMediaId: String(mediaId),
-            onlySocialPostId: String(postId),
+            accountUuid: socialAccount.accountId,
+            videoUrls: [video.videoUrl],
+            videoFilenames: [video.videoFilename],
+            videoSizes: [video.videoSize],
+            onlySocialMediaIds: [String(mediaId)],
+            onlySocialPostUuid: String(postId),
             onlySocialMediaUrl: mediaData.url,
             caption: video.caption,
             postType: video.postType,
             scheduledFor: scheduledDateUTC, // GIÀ UTC!
-            status: 'SCHEDULED',
-            uploadedToOSAt: new Date(),
-            scheduledAt: new Date()
+            status: 'MEDIA_UPLOADED',
+            preUploaded: true,
+            preUploadAt: new Date()
           }
         })
         
@@ -220,9 +221,9 @@ export async function POST(request: NextRequest) {
           data: {
             userId: user.id,
             socialAccountId: video.socialAccountId,
-            videoUrl: video.videoUrl,
-            videoFilename: video.videoFilename,
-            videoSize: video.videoSize,
+            videoUrls: [video.videoUrl],
+            videoFilenames: [video.videoFilename],
+            videoSizes: [video.videoSize],
             caption: video.caption,
             postType: video.postType,
             scheduledFor: scheduledDateUTC,
@@ -250,13 +251,13 @@ export async function POST(request: NextRequest) {
           data: {
             userId: user.id,
             socialAccountId: video.socialAccountId,
-            videoUrl: video.videoUrl,
-            videoFilename: video.videoFilename,
-            videoSize: video.videoSize,
+            videoUrls: [video.videoUrl],
+            videoFilenames: [video.videoFilename],
+            videoSizes: [video.videoSize],
             caption: video.caption,
             postType: video.postType,
             scheduledFor: scheduledDateUTC, // GIÀ UTC!
-            status: 'VIDEO_UPLOADED_DO' // Video su DigitalOcean, non ancora su OnlySocial
+            status: 'PENDING' // Video su DigitalOcean, non ancora su OnlySocial
           }
         })
         
