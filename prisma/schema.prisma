@@ -57,38 +57,57 @@ model ScheduledPost {
   id                 String     @id @default(cuid())
   userId             String
   socialAccountId    String
-  videoUrl           String
-  videoFilename      String
-  videoSize          Int
-  onlySocialMediaId  String?
-  onlySocialPostId   String?
-  onlySocialMediaUrl String?
+  accountUuid        String     @default("")  // UUID account OnlySocial (prima di conversione a integer)
+  accountId          Int?       // ID intero OnlySocial (dopo conversione)
+  
+  // Video (supporto per array multipli)
+  videoUrls          String[]   @default([])  // Array di URL video (DigitalOcean/Cloudflare)
+  videoFilenames     String[]   @default([])  // Array di nomi file originali
+  videoSizes         Int[]      @default([])  // Array di dimensioni file in bytes
+  
+  // OnlySocial IDs (popolati dopo upload)
+  onlySocialMediaIds String[]   @default([])  // Media IDs da OnlySocial (dopo upload)
+  onlySocialPostUuid String?    // UUID post OnlySocial (dopo creazione)
+  onlySocialMediaUrl String?    // URL media OnlySocial (legacy, deprecato)
+  
+  // Contenuto
   caption            String
-  postType           String
+  postType           String     @default("reel")  // 'post', 'reel', 'story'
+  
+  // Scheduling
   scheduledFor       DateTime   // SEMPRE IN UTC! Conversione fatta al momento dell'input
+  timezone           String     @default("Europe/Rome")  // Timezone utente (IANA)
+  
+  // Stati del processo
   status             PostStatus @default(PENDING)
+  preUploaded        Boolean    @default(false)  // Video già caricati su OnlySocial?
+  preUploadAt        DateTime?  // Quando sono stati pre-caricati
+  publishedAt        DateTime?  // Quando è stato effettivamente pubblicato
+  
+  // Error handling
   errorMessage       String?
   retryCount         Int        @default(0)
+  maxRetries         Int        @default(3)
+  
+  // Audit
   createdAt          DateTime   @default(now())
   updatedAt          DateTime   @updatedAt
-  uploadedToOSAt     DateTime?
-  scheduledAt        DateTime?
-  publishedAt        DateTime?
+  
+  // Relations
   user               User       @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([status])
   @@index([scheduledFor])
   @@index([userId])
   @@index([socialAccountId])
+  @@index([status, scheduledFor])  // Indice composto per query cron
   @@map("scheduled_posts")
 }
 
 enum PostStatus {
-  PENDING
-  VIDEO_UPLOADED_DO
-  VIDEO_UPLOADED_OS
-  SCHEDULED
-  PUBLISHED
-  FAILED
-  CANCELLED
+  PENDING           // In attesa
+  MEDIA_UPLOADED    // Video caricati su OnlySocial, in attesa di pubblicazione
+  PUBLISHED         // Pubblicato con successo
+  FAILED            // Errore durante pubblicazione
+  CANCELLED         // Cancellato dall'utente
 }

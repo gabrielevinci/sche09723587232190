@@ -108,6 +108,26 @@ export class OnlySocialAPI {
     return this.makeRequest(`/accounts/${accountUuid}`)
   }
 
+  /**
+   * Convert Account UUID to integer ID
+   * OnlySocial API requires integer account IDs for some endpoints
+   */
+  async getAccountIntegerId(accountUuid: string): Promise<number> {
+    console.log(`🔍 Converting account UUID ${accountUuid} to integer ID...`)
+    
+    const accounts = await this.listAccounts() as { data?: { uuid: string; id: number }[] }
+    const accountsArray = accounts.data || []
+    
+    const account = accountsArray.find((acc) => acc.uuid === accountUuid)
+    
+    if (!account) {
+      throw new Error(`Account UUID ${accountUuid} not found`)
+    }
+    
+    console.log(`✅ Account ID: ${account.id}`)
+    return account.id
+  }
+
   // ==================== MEDIA FILES ====================
 
   /**
@@ -682,37 +702,18 @@ export class OnlySocialAPI {
         postType
       )
 
-      // Verifica se il tempo di scheduling è troppo vicino (< 15 minuti)
-      const scheduledTime = new Date(Date.UTC(year, month - 1, day, hour, minute))
-      const now = new Date()
-      const minutesUntilScheduled = (scheduledTime.getTime() - now.getTime()) / (60 * 1000)
-      
-      console.log(`⏰ Minutes until scheduled: ${Math.round(minutesUntilScheduled)}`)
-      
-      if (minutesUntilScheduled < 15) {
-        // Troppo vicino, pubblica immediatamente
-        console.log(`⚡ Publishing immediately (less than 15 minutes)`)
-        await this.publishPostNow(postUuid)
-        
-        return {
-          success: true,
-          postUuid,
-          scheduledAt: 'Published immediately'
-        }
-      } else {
-        // Schedula normalmente
-        console.log(`⏰ Scheduling post ${postUuid} for ${year}-${month}-${day} ${hour}:${minute} UTC`)
-        await this.schedulePostAt(postUuid, year, month, day, hour, minute)
+      // Schedula il post
+      console.log(`⏰ Scheduling post ${postUuid} for ${year}-${month}-${day} ${hour}:${minute}`)
+      await this.schedulePostAt(postUuid, year, month, day, hour, minute)
 
-        const scheduledAt = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')} ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00`
+      const scheduledAt = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')} ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00`
 
-        console.log(`✅ Post scheduled successfully at ${scheduledAt}`)
+      console.log(`✅ Post scheduled successfully at ${scheduledAt}`)
 
-        return {
-          success: true,
-          postUuid,
-          scheduledAt
-        }
+      return {
+        success: true,
+        postUuid,
+        scheduledAt
       }
     } catch (error) {
       console.error('Error creating and scheduling post with media IDs:', error)
