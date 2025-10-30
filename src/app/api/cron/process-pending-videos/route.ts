@@ -39,25 +39,27 @@ export async function POST(request: NextRequest) {
     const oneHourFromNow = new Date(now.getTime() + 60 * 60 * 1000) // +1 ora
 
     // 2. Trova video da processare
-    // AGGIORNATO: Usa i nuovi stati PENDING e MEDIA_UPLOADED
+    // AGGIORNATO (2025-10-30): Include anche post nel passato per recuperare post "saltati"
     const videosToProcess = await prisma.scheduledPost.findMany({
       where: {
         OR: [
           {
             // Post in attesa che devono essere caricati entro 1 ora
+            // INCLUDE anche post nel passato (rimosso gte: now)
             status: 'PENDING',
             preUploaded: false,
             scheduledFor: {
               lte: oneHourFromNow,
-              gte: now
+              // ✅ RIMOSSO gte: now per includere post nel passato
             }
           },
           {
-            // Post già caricati da pubblicare entro 5 minuti
+            // Post già caricati da pubblicare entro finestra temporale
+            // Usa finestra estesa nel passato (30 minuti) per recuperare post in ritardo
             status: 'MEDIA_UPLOADED',
             scheduledFor: {
-              lte: new Date(now.getTime() + 5 * 60 * 1000), // +5 minuti
-              gte: new Date(now.getTime() - 5 * 60 * 1000)  // -5 minuti
+              lte: new Date(now.getTime() + 5 * 60 * 1000),   // +5 minuti
+              gte: new Date(now.getTime() - 30 * 60 * 1000)  // -30 minuti (estesa)
             }
           }
         ]
