@@ -2,12 +2,13 @@
  * API Route: GET /api/cron/publish
  * Cron job che PUBBLICA i post all'ora programmata
  * 
- * Esegui ogni 5 minuti (cron expression: ogni 5 minuti)
+ * NUOVO FLUSSO (2025-10-30):
+ * - Trova post da pubblicare ORA (status: MEDIA_UPLOADED, scheduledFor in finestra ±5 minuti)
+ * - Crea il post su OnlySocial con i media IDs già caricati
+ * - Pubblica IMMEDIATAMENTE con postNow: true
+ * - Aggiorna database con status: PUBLISHED e publishedAt timestamp
  * 
- * Flusso:
- * 1. Trova post da pubblicare ORA (status: MEDIA_UPLOADED, scheduledFor in finestra ±5 minuti)
- * 2. Pubblica IMMEDIATAMENTE su OnlySocial con postNow: true
- * 3. Aggiorna database con status: PUBLISHED e publishedAt timestamp
+ * Esegui ogni 5 minuti
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -52,28 +53,46 @@ export async function GET(request: NextRequest) {
 
     for (const post of posts) {
       try {
-        if (!post.onlySocialPostUuid) {
-          throw new Error('Post UUID not found - post may not have been pre-uploaded correctly')
+        // Verifica che i media siano stati pre-caricati
+        if (!post.onlySocialMediaIds || post.onlySocialMediaIds.length === 0) {
+          throw new Error('Media IDs not found - post may not have been pre-uploaded correctly')
         }
 
         console.log(`\n🚀 Publishing post ID: ${post.id}`)
-        console.log(`   Post UUID: ${post.onlySocialPostUuid}`)
+        console.log(`   Account UUID: ${post.accountUuid}`)
+        console.log(`   Media IDs: ${post.onlySocialMediaIds.join(', ')}`)
         console.log(`   Scheduled for: ${post.scheduledFor}`)
         console.log(`   Caption: ${post.caption.substring(0, 50)}...`)
 
-        // Pubblica IMMEDIATAMENTE con postNow: true
-        const publishResult = await onlySocialApi.publishPostNow(post.onlySocialPostUuid)
+        // 1. Crea il post su OnlySocial con i media IDs già caricati
+        console.log(`   📝 Creating post on OnlySocial...`)
+        
+        const mediaIdsNumbers = post.onlySocialMediaIds.map(id => parseInt(id, 10))
+        
+        const { postUuid } = await onlySocialApi.createPostWithMediaIds(
+          post.accountUuid,
+          post.caption,
+          mediaIdsNumbers,
+          post.postType
+        )
+
+        console.log(`   ✅ Post created with UUID: ${postUuid}`)
+
+        // 2. Pubblica IMMEDIATAMENTE con postNow: true
+        console.log(`   🚀 Publishing NOW...`)
+        const publishResult = await onlySocialApi.publishPostNow(postUuid)
 
         console.log(`   ✅ Published successfully!`)
         console.log(`   Result:`, JSON.stringify(publishResult).substring(0, 200))
 
-        // Aggiorna database
+        // 3. Aggiorna database
         await markPostAsPublished(post.id)
 
         console.log(`   ✅ Database updated - Status: PUBLISHED`)
 
         results.push({
           postId: post.id,
+          postUuid: postUuid,
           status: 'published',
           publishedAt: new Date().toISOString(),
         })

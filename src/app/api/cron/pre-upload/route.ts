@@ -1,15 +1,14 @@
 /**
  * API Route: GET /api/cron/pre-upload
- * Cron job che PRE-CARICA i video su OnlySocial 2 ore prima della pubblicazione
+ * Cron job che PRE-CARICA i video su OnlySocial 1 ora prima della pubblicazione
+ * 
+ * NUOVO FLUSSO (2025-10-30):
+ * - Trova post da pubblicare nelle prossime 1 ora (status: PENDING, preUploaded: false)
+ * - Carica i video su OnlySocial (scarica da DigitalOcean e invia con FormData)
+ * - Salva i media IDs nel database (status: MEDIA_UPLOADED)
+ * - NON crea post su OnlySocial, solo prepara i media
  * 
  * Esegui ogni ora (cron expression: 0 ogni ora)
- * 
- * Flusso:
- * 1. Trova post da pubblicare nelle prossime 2 ore (status: PENDING, preUploaded: false)
- * 2. Converti Account UUID → Integer ID
- * 3. Upload video su OnlySocial (scarica da DO e invia con FormData)
- * 4. Crea post su OnlySocial (ma NON pubblicare)
- * 5. Aggiorna database con media IDs e post UUID (status: MEDIA_UPLOADED)
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -30,8 +29,8 @@ export async function GET(request: NextRequest) {
     console.log('🔄 Starting pre-upload cron job...')
     console.log(`   Time: ${new Date().toISOString()}`)
 
-    // Trova post da pubblicare nelle prossime 2 ore
-    const posts = await getPostsDueForPreUpload(2)
+    // Trova post da pubblicare nelle prossime 1 ora (cambiato da 2 a 1)
+    const posts = await getPostsDueForPreUpload(1)
 
     if (posts.length === 0) {
       console.log('✅ No posts to pre-upload')
@@ -63,7 +62,7 @@ export async function GET(request: NextRequest) {
         const accountId = await onlySocialApi.getAccountIntegerId(post.accountUuid)
         console.log(`   Account ID: ${accountId}`)
 
-        // 2. Upload tutti i video
+        // 2. Upload tutti i video su OnlySocial
         const mediaIds: string[] = []
         for (let i = 0; i < post.videoUrls.length; i++) {
           const videoUrl = post.videoUrls[i]
@@ -84,26 +83,18 @@ export async function GET(request: NextRequest) {
 
         console.log(`   ✅ All ${mediaIds.length} videos uploaded: ${mediaIds.join(', ')}`)
 
-        // 3. Crea il post (ma NON pubblicare) - usa accountUuid, non accountId
-        const { postUuid } = await onlySocialApi.createPostWithMediaIds(
-          post.accountUuid,  // ⚠️ Usa accountUuid (string), non accountId (number)
-          post.caption,
-          mediaIds.map(id => parseInt(id)),
-          post.postType
-        )
-
-        console.log(`   ✅ Post created: ${postUuid}`)
-
-        // 4. Aggiorna database con account ID intero
-        await updatePostMediaIds(post.id, mediaIds, postUuid, accountId)
+        // 3. Aggiorna database con media IDs (NON creare post su OnlySocial)
+        // Il post verrà creato e pubblicato dal cron job publish al momento giusto
+        await updatePostMediaIds(post.id, mediaIds, null, accountId)
 
         console.log(`   ✅ Database updated - Status: MEDIA_UPLOADED`)
+        console.log(`   ⏰ Post will be published at: ${post.scheduledFor}`)
 
         results.push({
           postId: post.id,
           status: 'success',
           mediaIds,
-          postUuid,
+          message: 'Media uploaded, waiting for publish time',
         })
       } catch (error) {
         console.error(`   ❌ Error processing post ${post.id}:`, error)

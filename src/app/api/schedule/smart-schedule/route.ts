@@ -1,9 +1,11 @@
 /**
  * Smart Scheduling API
  * 
- * Gestisce lo scheduling intelligente dei video:
- * - Video da pubblicare entro 1 ora: carica su DigitalOcean + OnlySocial + schedula
- * - Video da pubblicare dopo 1 ora: carica solo su DigitalOcean, schedula per dopo
+ * NUOVO FLUSSO (2025-10-30):
+ * - TUTTI i video vengono salvati SOLO nel database Neon con status PENDING
+ * - NIENTE viene mai caricato su OnlySocial in questa fase
+ * - Il cron job /api/cron/pre-upload si occuperà di caricare i video 1 ora prima
+ * - Il cron job /api/cron/publish si occuperà della pubblicazione immediata all'ora esatta
  * 
  * Questo endpoint è chiamato dall'interfaccia utente quando si clicca "Schedula Tutti"
  */
@@ -12,7 +14,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { OnlySocialAPI } from '@/lib/onlysocial-api'
 
 interface ScheduleVideoRequest {
   socialAccountId: string
@@ -51,59 +52,13 @@ export async function POST(request: NextRequest) {
     // 3. Parse request body
     const videos: ScheduleVideoRequest[] = await request.json()
     
-    console.log(`📅 Smart scheduling ${videos.length} videos for user ${user.email}`)
+    console.log(`📅 Saving ${videos.length} videos to database for user ${user.email}`)
 
-    // 4. Determina quali video caricare ora e quali dopo
-    // Le date sono GIÀ IN UTC, confronto diretto!
-    const now = new Date()
-    const oneHourFromNow = new Date(now.getTime() + 60 * 60 * 1000) // +1 ora
-    
-    const videosToUploadNow: ScheduleVideoRequest[] = []
-    const videosToUploadLater: ScheduleVideoRequest[] = []
-    
-    for (const video of videos) {
-      // scheduledFor è GIÀ UTC! No conversione necessaria
-      const scheduledDateUTC = new Date(video.scheduledFor)
-      
-      console.log(`📅 Video: ${video.videoFilename}`)
-      console.log(`   Scheduled (UTC): ${scheduledDateUTC.toISOString()}`)
-      console.log(`   Now (UTC): ${now.toISOString()}`)
-      console.log(`   One hour from now (UTC): ${oneHourFromNow.toISOString()}`)
-      
-      if (scheduledDateUTC <= oneHourFromNow) {
-        // Pubblica entro 1 ora → carica su OnlySocial ORA
-        console.log(`   ✅ Upload NOW`)
-        videosToUploadNow.push(video)
-      } else {
-        // Pubblica tra più di 1 ora → salva per dopo
-        console.log(`   ⏰ Upload LATER`)
-        videosToUploadLater.push(video)
-      }
-    }
-    
-    console.log(`⚡ ${videosToUploadNow.length} videos to upload NOW`)
-    console.log(`⏰ ${videosToUploadLater.length} videos to upload LATER`)
-
-    // 5. Inizializza OnlySocial API
-    const onlySocialToken = process.env.ONLYSOCIAL_API_KEY
-    const workspaceUuid = process.env.ONLYSOCIAL_WORKSPACE_UUID
-
-    if (!onlySocialToken || !workspaceUuid) {
-      throw new Error('OnlySocial credentials not configured')
-    }
-
-    const onlySocialApi = new OnlySocialAPI({
-      token: onlySocialToken,
-      workspaceUuid: workspaceUuid
-    })
-
-    interface UploadedVideo {
+    interface SavedVideo {
       id: string
       filename: string
       scheduledFor: string
-      onlySocialMediaId?: string
-      onlySocialPostId?: string
-      willUploadAt?: string
+      willBeUploadedAt: string // 1 ora prima della pubblicazione
     }
 
     interface VideoError {
@@ -112,34 +67,16 @@ export async function POST(request: NextRequest) {
     }
 
     const results = {
-      uploadedNow: [] as UploadedVideo[],
-      savedForLater: [] as UploadedVideo[],
+      saved: [] as SavedVideo[],
       errors: [] as VideoError[]
     }
 
-    // 6. Processa video da caricare ORA
-    for (const video of videosToUploadNow) {
+    // 4. Salva TUTTI i video nel database con status PENDING
+    for (const video of videos) {
       try {
-        console.log(`🚀 Processing video for immediate upload: ${video.videoFilename}`)
+        console.log(`� Saving video to database: ${video.videoFilename}`)
         
-        // Step 1: Carica video su OnlySocial
-        const mediaResult = await onlySocialApi.uploadMedia({
-          file: video.videoUrl,
-          alt_text: video.caption
-        })
-        
-        interface MediaData {
-          id?: number
-          uuid?: string
-          url: string
-        }
-        
-        const mediaData = (mediaResult as { data: MediaData }).data
-        const mediaId = mediaData.id || mediaData.uuid
-        
-        console.log(`✅ Video uploaded to OnlySocial, ID: ${mediaId}`)
-        
-        // Step 2: Ottieni account OnlySocial ID
+        // Ottieni l'account social
         const socialAccount = await prisma.socialAccount.findUnique({
           where: { id: video.socialAccountId }
         })
@@ -148,124 +85,40 @@ export async function POST(request: NextRequest) {
           throw new Error(`Social account ${video.socialAccountId} not found`)
         }
         
-        // Step 3: Schedula post su OnlySocial
-        // video.scheduledFor è GIÀ IN UTC! Estraiamo i componenti direttamente
+        // La data è già in UTC
         const scheduledDateUTC = new Date(video.scheduledFor)
         
-        // Estrai componenti UTC per OnlySocial API
-        const yearUTC = scheduledDateUTC.getUTCFullYear()
-        const monthUTC = scheduledDateUTC.getUTCMonth() + 1
-        const dayUTC = scheduledDateUTC.getUTCDate()
-        const hourUTC = scheduledDateUTC.getUTCHours()
-        const minuteUTC = scheduledDateUTC.getUTCMinutes()
+        // Calcola quando il video verrà pre-caricato (1 ora prima)
+        const willBeUploadedAt = new Date(scheduledDateUTC.getTime() - 60 * 60 * 1000)
         
-        console.log(`📝 Creating post for account ID: ${socialAccount.accountId}`)
-        console.log(`⏰ Scheduled for (UTC): ${scheduledDateUTC.toISOString()}`)
-        console.log(`⏰ OnlySocial format: ${yearUTC}-${monthUTC}-${dayUTC} ${hourUTC}:${minuteUTC}`)
+        console.log(`   Scheduled for (UTC): ${scheduledDateUTC.toISOString()}`)
+        console.log(`   Will be uploaded at (UTC): ${willBeUploadedAt.toISOString()}`)
         
-        // ✅ Usa il media ID già caricato, NON ri-caricare il video
-        const mediaIdNumber = typeof mediaId === 'string' ? parseInt(mediaId, 10) : mediaId as number
-        
-        const postResult = await onlySocialApi.createAndSchedulePostWithMediaIds(
-          socialAccount.accountId, // UUID dell'account OnlySocial
-          video.caption,
-          [mediaIdNumber], // Array di ID dei media già caricati
-          yearUTC,  // Componenti UTC
-          monthUTC,
-          dayUTC,
-          hourUTC,
-          minuteUTC,
-          video.postType
-        )
-        
-        const postId = postResult.postUuid
-        
-        console.log(`✅ Post scheduled on OnlySocial, UUID: ${postId}`)
-        
-        // Step 4: Salva nel database (già UTC!)
+        // Salva nel database con status PENDING
         const scheduledPost = await prisma.scheduledPost.create({
           data: {
             userId: user.id,
             socialAccountId: video.socialAccountId,
-            accountUuid: socialAccount.accountId,
-            videoUrls: [video.videoUrl],
-            videoFilenames: [video.videoFilename],
-            videoSizes: [video.videoSize],
-            onlySocialMediaIds: [String(mediaId)],
-            onlySocialPostUuid: String(postId),
-            onlySocialMediaUrl: mediaData.url,
-            caption: video.caption,
-            postType: video.postType,
-            scheduledFor: scheduledDateUTC, // GIÀ UTC!
-            status: 'MEDIA_UPLOADED',
-            preUploaded: true,
-            preUploadAt: new Date()
-          }
-        })
-        
-        results.uploadedNow.push({
-          id: scheduledPost.id,
-          filename: video.videoFilename,
-          scheduledFor: video.scheduledFor, // ISO string UTC
-          onlySocialMediaId: String(mediaId),
-          onlySocialPostId: postId
-        })
-        
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-        console.error(`❌ Error processing video ${video.videoFilename}:`, error)
-        
-        // Salva nel database con stato FAILED
-        const scheduledDateUTC = new Date(video.scheduledFor)
-        await prisma.scheduledPost.create({
-          data: {
-            userId: user.id,
-            socialAccountId: video.socialAccountId,
+            accountUuid: socialAccount.accountId, // UUID account OnlySocial
             videoUrls: [video.videoUrl],
             videoFilenames: [video.videoFilename],
             videoSizes: [video.videoSize],
             caption: video.caption,
             postType: video.postType,
             scheduledFor: scheduledDateUTC,
-            status: 'FAILED',
-            errorMessage: errorMessage
+            timezone: user.timezone || 'Europe/Rome',
+            status: 'PENDING', // Video salvato, non ancora caricato su OnlySocial
+            preUploaded: false
           }
         })
         
-        results.errors.push({
-          filename: video.videoFilename,
-          error: errorMessage
-        })
-      }
-    }
-
-    // 7. Salva video da caricare DOPO
-    for (const video of videosToUploadLater) {
-      try {
-        console.log(`💾 Saving video for later upload: ${video.videoFilename}`)
+        console.log(`   ✅ Saved to database with ID: ${scheduledPost.id}`)
         
-        const scheduledDateUTC = new Date(video.scheduledFor)
-        const willUploadAt = new Date(scheduledDateUTC.getTime() - 60 * 60 * 1000) // 1 ora prima
-        
-        const scheduledPost = await prisma.scheduledPost.create({
-          data: {
-            userId: user.id,
-            socialAccountId: video.socialAccountId,
-            videoUrls: [video.videoUrl],
-            videoFilenames: [video.videoFilename],
-            videoSizes: [video.videoSize],
-            caption: video.caption,
-            postType: video.postType,
-            scheduledFor: scheduledDateUTC, // GIÀ UTC!
-            status: 'PENDING' // Video su DigitalOcean, non ancora su OnlySocial
-          }
-        })
-        
-        results.savedForLater.push({
+        results.saved.push({
           id: scheduledPost.id,
           filename: video.videoFilename,
-          scheduledFor: video.scheduledFor, // ISO string UTC
-          willUploadAt: willUploadAt.toISOString()
+          scheduledFor: video.scheduledFor,
+          willBeUploadedAt: willBeUploadedAt.toISOString()
         })
         
       } catch (error) {
@@ -278,21 +131,20 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 8. Ritorna risultati
-    console.log(`✅ Smart scheduling completed`)
-    console.log(`   - Uploaded NOW: ${results.uploadedNow.length}`)
-    console.log(`   - Saved for LATER: ${results.savedForLater.length}`)
+    // 5. Ritorna risultati
+    console.log(`✅ Scheduling completed`)
+    console.log(`   - Saved: ${results.saved.length}`)
     console.log(`   - Errors: ${results.errors.length}`)
 
     return NextResponse.json({
       success: true,
       summary: {
         total: videos.length,
-        uploadedNow: results.uploadedNow.length,
-        savedForLater: results.savedForLater.length,
+        saved: results.saved.length,
         errors: results.errors.length
       },
-      results
+      results,
+      message: 'Videos saved successfully. They will be uploaded 1 hour before publication and published at the scheduled time by cron jobs.'
     })
 
   } catch (error) {
