@@ -13,6 +13,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { OnlySocialAPI } from '@/lib/onlysocial-api'
+import { fromZonedTime } from 'date-fns-tz'
 
 interface ScheduleVideoRequest {
   socialAccountId: string
@@ -58,21 +59,32 @@ export async function POST(request: NextRequest) {
     console.log(`📅 Smart scheduling ${videos.length} videos for user ${user.email}`)
 
     // 4. Determina quali video caricare ora e quali dopo
-    const now = new Date()
-    const oneHourFromNow = new Date(now.getTime() + 60 * 60 * 1000) // +1 ora
+    // IMPORTANTE: Il server Vercel è in UTC, ma gli utenti schedulano in ora italiana
+    const now = new Date() // UTC
+    const oneHourFromNow = new Date(now.getTime() + 60 * 60 * 1000) // +1 ora in UTC
     
     const videosToUploadNow: ScheduleVideoRequest[] = []
     const videosToUploadLater: ScheduleVideoRequest[] = []
     
     for (const video of videos) {
-      // Crea data in ora locale italiana (NO UTC)
-      const scheduledDate = new Date(video.year, video.month - 1, video.day, video.hour, video.minute)
+      // Crea data in ora locale italiana e convertila in UTC per il confronto
+      // fromZonedTime interpreta i componenti come ora di Roma e restituisce l'equivalente UTC
+      const scheduledDateLocal = new Date(video.year, video.month - 1, video.day, video.hour, video.minute)
+      const scheduledDateUTC = fromZonedTime(scheduledDateLocal, 'Europe/Rome')
       
-      if (scheduledDate <= oneHourFromNow) {
+      console.log(`📅 Video: ${video.videoFilename}`)
+      console.log(`   Scheduled (local): ${scheduledDateLocal.toISOString()}`)
+      console.log(`   Scheduled (UTC): ${scheduledDateUTC.toISOString()}`)
+      console.log(`   Now (UTC): ${now.toISOString()}`)
+      console.log(`   One hour from now (UTC): ${oneHourFromNow.toISOString()}`)
+      
+      if (scheduledDateUTC <= oneHourFromNow) {
         // Pubblica entro 1 ora → carica su OnlySocial ORA
+        console.log(`   ✅ Upload NOW`)
         videosToUploadNow.push(video)
       } else {
         // Pubblica tra più di 1 ora → salva per dopo
+        console.log(`   ⏰ Upload LATER`)
         videosToUploadLater.push(video)
       }
     }
