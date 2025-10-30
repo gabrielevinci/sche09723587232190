@@ -13,6 +13,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { OnlySocialAPI } from '@/lib/onlysocial-api'
+import { fromZonedTime } from 'date-fns-tz'
 
 export async function POST(request: NextRequest) {
   try {
@@ -122,14 +123,26 @@ export async function POST(request: NextRequest) {
         }
         
         // Step 3: Schedula post su OnlySocial
-        const scheduledDate = new Date(video.scheduledFor)
-        const year = scheduledDate.getFullYear()
-        const month = scheduledDate.getMonth() + 1
-        const day = scheduledDate.getDate()
-        const hour = scheduledDate.getHours()
-        const minute = scheduledDate.getMinutes()
+        // IMPORTANTE: video.scheduledFor è salvato come ora locale italiana nel DB
+        // Dobbiamo convertirlo in UTC per OnlySocial API
+        
+        // Il DB contiene una data che rappresenta l'ora italiana
+        // Es: 2025-10-30T01:40:00.000Z che SIGNIFICA 01:40 ora italiana
+        const scheduledDateLocal = new Date(video.scheduledFor)
+        
+        // Interpretiamo questa data come ora italiana e convertiamo in UTC
+        const scheduledDateUTC = fromZonedTime(scheduledDateLocal, 'Europe/Rome')
+        
+        // Estrai componenti UTC per OnlySocial API
+        const yearUTC = scheduledDateUTC.getUTCFullYear()
+        const monthUTC = scheduledDateUTC.getUTCMonth() + 1
+        const dayUTC = scheduledDateUTC.getUTCDate()
+        const hourUTC = scheduledDateUTC.getUTCHours()
+        const minuteUTC = scheduledDateUTC.getUTCMinutes()
         
         console.log(`📝 Creating post for account ID: ${socialAccount.accountId}`)
+        console.log(`   Scheduled (local IT): ${scheduledDateLocal.toISOString()}`)
+        console.log(`   Scheduled (UTC): ${yearUTC}-${monthUTC}-${dayUTC} ${hourUTC}:${minuteUTC}`)
         
         // ✅ Usa il media ID già caricato, NON ri-caricare il video
         const mediaIdNumber = typeof mediaId === 'string' ? parseInt(mediaId, 10) : mediaId as number
@@ -138,11 +151,11 @@ export async function POST(request: NextRequest) {
           socialAccount.accountId, // UUID dell'account OnlySocial
           video.caption,
           [mediaIdNumber], // Array di ID dei media già caricati
-          year,
-          month,
-          day,
-          hour,
-          minute,
+          yearUTC,  // USA UTC!
+          monthUTC,
+          dayUTC,
+          hourUTC,
+          minuteUTC,
           video.postType
         )
         
