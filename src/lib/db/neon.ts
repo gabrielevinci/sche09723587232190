@@ -50,6 +50,9 @@ export async function saveScheduledPost(data: SaveScheduledPostData) {
 /**
  * Trova post da pre-caricare (da pubblicare nelle prossime X ore)
  * Filtra solo post in stato PENDING che non sono stati pre-caricati
+ * 
+ * IMPORTANTE: Include anche post "in ritardo" (scheduledFor nel passato)
+ * per recuperare eventuali post saltati dal cron job precedente
  */
 export async function getPostsDueForPreUpload(hoursAhead: number = 2) {
   const futureDate = new Date()
@@ -61,7 +64,7 @@ export async function getPostsDueForPreUpload(hoursAhead: number = 2) {
       preUploaded: false,
       scheduledFor: {
         lte: futureDate,
-        gt: new Date(),
+        // RIMOSSO gt: new Date() per includere post nel passato che devono ancora essere caricati
       },
     },
     orderBy: {
@@ -75,10 +78,15 @@ export async function getPostsDueForPreUpload(hoursAhead: number = 2) {
 /**
  * Trova post da pubblicare ORA (con finestra di tolleranza)
  * Filtra post in stato MEDIA_UPLOADED nell'intervallo temporale
+ * 
+ * IMPORTANTE: Usa una finestra estesa nel passato per recuperare post "in ritardo"
+ * che non sono stati pubblicati al momento giusto (es. cron job saltato)
  */
 export async function getPostsDueForPublishing(minutesWindow: number = 5) {
   const now = new Date()
-  const past = new Date(now.getTime() - minutesWindow * 60000)
+  // Finestra estesa nel passato (30 minuti) per recuperare post in ritardo
+  const past = new Date(now.getTime() - 30 * 60000)
+  // Finestra normale nel futuro (minutesWindow)
   const future = new Date(now.getTime() + minutesWindow * 60000)
 
   const posts = await prisma.scheduledPost.findMany({
