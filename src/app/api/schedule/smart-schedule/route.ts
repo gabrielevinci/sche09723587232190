@@ -157,18 +157,21 @@ export async function POST(request: NextRequest) {
         }
         
         // Step 3: Schedula post su OnlySocial
-        // Usa direttamente i componenti passati dal frontend (ora locale italiana)
-        const year = video.year
-        const month = video.month
-        const day = video.day
-        const hour = video.hour
-        const minute = video.minute
+        // IMPORTANTE: OnlySocial interpreta scheduleTime come UTC!
+        // Dobbiamo convertire l'ora italiana in UTC prima di inviare
+        const scheduledDateLocal = new Date(video.year, video.month - 1, video.day, video.hour, video.minute)
+        const scheduledDateUTC = fromZonedTime(scheduledDateLocal, 'Europe/Rome')
         
-        // Crea Date per il database
-        const scheduledDate = new Date(year, month - 1, day, hour, minute)
+        // Estrai componenti UTC
+        const yearUTC = scheduledDateUTC.getUTCFullYear()
+        const monthUTC = scheduledDateUTC.getUTCMonth() + 1
+        const dayUTC = scheduledDateUTC.getUTCDate()
+        const hourUTC = scheduledDateUTC.getUTCHours()
+        const minuteUTC = scheduledDateUTC.getUTCMinutes()
         
         console.log(`📝 Creating post for account ID: ${socialAccount.accountId}`)
-        console.log(`⏰ Scheduled for: ${year}-${month}-${day} ${hour}:${minute} (local time)`)
+        console.log(`⏰ Scheduled for (local IT): ${video.year}-${video.month}-${video.day} ${video.hour}:${video.minute}`)
+        console.log(`⏰ Scheduled for (UTC): ${yearUTC}-${monthUTC}-${dayUTC} ${hourUTC}:${minuteUTC}`)
         
         // ✅ Usa il media ID già caricato, NON ri-caricare il video
         const mediaIdNumber = typeof mediaId === 'string' ? parseInt(mediaId, 10) : mediaId as number
@@ -177,11 +180,11 @@ export async function POST(request: NextRequest) {
           socialAccount.accountId, // UUID dell'account OnlySocial
           video.caption,
           [mediaIdNumber], // Array di ID dei media già caricati
-          year,
-          month,
-          day,
-          hour,
-          minute,
+          yearUTC,  // USA UTC!
+          monthUTC,
+          dayUTC,
+          hourUTC,
+          minuteUTC,
           video.postType
         )
         
@@ -189,7 +192,7 @@ export async function POST(request: NextRequest) {
         
         console.log(`✅ Post scheduled on OnlySocial, UUID: ${postId}`)
         
-        // Step 4: Salva nel database
+        // Step 4: Salva nel database (usa ora locale italiana)
         const scheduledPost = await prisma.scheduledPost.create({
           data: {
             userId: user.id,
@@ -202,7 +205,7 @@ export async function POST(request: NextRequest) {
             onlySocialMediaUrl: mediaData.url,
             caption: video.caption,
             postType: video.postType,
-            scheduledFor: scheduledDate,
+            scheduledFor: scheduledDateLocal, // Usa ora locale per il database
             status: 'SCHEDULED',
             uploadedToOSAt: new Date(),
             scheduledAt: new Date()
@@ -212,7 +215,7 @@ export async function POST(request: NextRequest) {
         results.uploadedNow.push({
           id: scheduledPost.id,
           filename: video.videoFilename,
-          scheduledFor: `${year}-${month}-${day} ${hour}:${minute}`,
+          scheduledFor: `${video.year}-${video.month}-${video.day} ${video.hour}:${video.minute}`,
           onlySocialMediaId: String(mediaId),
           onlySocialPostId: postId
         })
