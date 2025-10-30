@@ -13,7 +13,6 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { OnlySocialAPI } from '@/lib/onlysocial-api'
-import { fromZonedTime } from 'date-fns-tz'
 
 interface ScheduleVideoRequest {
   socialAccountId: string
@@ -22,12 +21,8 @@ interface ScheduleVideoRequest {
   videoSize: number // bytes
   caption: string
   postType: 'reel' | 'story' | 'post'
-  // Componenti data/ora in ora locale italiana (NO UTC)
-  year: number
-  month: number
-  day: number
-  hour: number
-  minute: number
+  // Data/ora GIÀ IN UTC! Il frontend ha già fatto la conversione
+  scheduledFor: string // ISO 8601 UTC string
 }
 
 export async function POST(request: NextRequest) {
@@ -59,21 +54,18 @@ export async function POST(request: NextRequest) {
     console.log(`📅 Smart scheduling ${videos.length} videos for user ${user.email}`)
 
     // 4. Determina quali video caricare ora e quali dopo
-    // IMPORTANTE: Il server Vercel è in UTC, ma gli utenti schedulano in ora italiana
-    const now = new Date() // UTC
-    const oneHourFromNow = new Date(now.getTime() + 60 * 60 * 1000) // +1 ora in UTC
+    // Le date sono GIÀ IN UTC, confronto diretto!
+    const now = new Date()
+    const oneHourFromNow = new Date(now.getTime() + 60 * 60 * 1000) // +1 ora
     
     const videosToUploadNow: ScheduleVideoRequest[] = []
     const videosToUploadLater: ScheduleVideoRequest[] = []
     
     for (const video of videos) {
-      // Crea data in ora locale italiana e convertila in UTC per il confronto
-      // fromZonedTime interpreta i componenti come ora di Roma e restituisce l'equivalente UTC
-      const scheduledDateLocal = new Date(video.year, video.month - 1, video.day, video.hour, video.minute)
-      const scheduledDateUTC = fromZonedTime(scheduledDateLocal, 'Europe/Rome')
+      // scheduledFor è GIÀ UTC! No conversione necessaria
+      const scheduledDateUTC = new Date(video.scheduledFor)
       
       console.log(`📅 Video: ${video.videoFilename}`)
-      console.log(`   Scheduled (local): ${scheduledDateLocal.toISOString()}`)
       console.log(`   Scheduled (UTC): ${scheduledDateUTC.toISOString()}`)
       console.log(`   Now (UTC): ${now.toISOString()}`)
       console.log(`   One hour from now (UTC): ${oneHourFromNow.toISOString()}`)
@@ -156,74 +148,41 @@ export async function POST(request: NextRequest) {
           throw new Error(`Social account ${video.socialAccountId} not found`)
         }
         
-        // Step 3: Determina se schedulare o pubblicare immediatamente
-        // IMPORTANTE: OnlySocial interpreta scheduleTime come UTC!
-        // Dobbiamo convertire l'ora italiana in UTC prima di inviare
-        const scheduledDateLocal = new Date(video.year, video.month - 1, video.day, video.hour, video.minute)
-        const scheduledDateUTC = fromZonedTime(scheduledDateLocal, 'Europe/Rome')
+        // Step 3: Schedula post su OnlySocial
+        // video.scheduledFor è GIÀ IN UTC! Estraiamo i componenti direttamente
+        const scheduledDateUTC = new Date(video.scheduledFor)
         
-        // Controlla se il tempo schedulato è troppo vicino (< 10 minuti)
-        // Per evitare errori "date is in the past" a causa del processing time
-        const now = new Date()
-        const tenMinutesFromNow = new Date(now.getTime() + 10 * 60 * 1000)
-        const shouldPublishNow = scheduledDateUTC <= tenMinutesFromNow
+        // Estrai componenti UTC per OnlySocial API
+        const yearUTC = scheduledDateUTC.getUTCFullYear()
+        const monthUTC = scheduledDateUTC.getUTCMonth() + 1
+        const dayUTC = scheduledDateUTC.getUTCDate()
+        const hourUTC = scheduledDateUTC.getUTCHours()
+        const minuteUTC = scheduledDateUTC.getUTCMinutes()
         
         console.log(`📝 Creating post for account ID: ${socialAccount.accountId}`)
-        console.log(`⏰ Scheduled for (local IT): ${video.year}-${video.month}-${video.day} ${video.hour}:${video.minute}`)
         console.log(`⏰ Scheduled for (UTC): ${scheduledDateUTC.toISOString()}`)
-        console.log(`⏰ Now (UTC): ${now.toISOString()}`)
-        console.log(`⏰ Time until scheduled: ${Math.round((scheduledDateUTC.getTime() - now.getTime()) / 1000 / 60)} minutes`)
+        console.log(`⏰ OnlySocial format: ${yearUTC}-${monthUTC}-${dayUTC} ${hourUTC}:${minuteUTC}`)
         
         // ✅ Usa il media ID già caricato, NON ri-caricare il video
         const mediaIdNumber = typeof mediaId === 'string' ? parseInt(mediaId, 10) : mediaId as number
         
-        let postId: string
+        const postResult = await onlySocialApi.createAndSchedulePostWithMediaIds(
+          socialAccount.accountId, // UUID dell'account OnlySocial
+          video.caption,
+          [mediaIdNumber], // Array di ID dei media già caricati
+          yearUTC,  // Componenti UTC
+          monthUTC,
+          dayUTC,
+          hourUTC,
+          minuteUTC,
+          video.postType
+        )
         
-        if (shouldPublishNow) {
-          // PUBBLICA IMMEDIATAMENTE (troppo vicino per schedulare)
-          console.log(`🚀 Publishing NOW (too close to schedule safely)`)
-          
-          const { postUuid } = await onlySocialApi.createPostWithMediaIds(
-            socialAccount.accountId,
-            video.caption,
-            [mediaIdNumber],
-            video.postType
-          )
-          
-          postId = postUuid
-          
-          // Pubblica immediatamente
-          await onlySocialApi.publishPostNow(postId)
-          console.log(`✅ Post published immediately!`)
-          
-        } else {
-          // SCHEDULA per dopo (abbastanza tempo)
-          console.log(`📅 Scheduling for later`)
-          
-          // Estrai componenti UTC
-          const yearUTC = scheduledDateUTC.getUTCFullYear()
-          const monthUTC = scheduledDateUTC.getUTCMonth() + 1
-          const dayUTC = scheduledDateUTC.getUTCDate()
-          const hourUTC = scheduledDateUTC.getUTCHours()
-          const minuteUTC = scheduledDateUTC.getUTCMinutes()
-          
-          const postResult = await onlySocialApi.createAndSchedulePostWithMediaIds(
-            socialAccount.accountId,
-            video.caption,
-            [mediaIdNumber],
-            yearUTC,
-            monthUTC,
-            dayUTC,
-            hourUTC,
-            minuteUTC,
-            video.postType
-          )
-          
-          postId = postResult.postUuid
-          console.log(`✅ Post scheduled on OnlySocial, UUID: ${postId}`)
-        }
+        const postId = postResult.postUuid
         
-        // Step 4: Salva nel database (usa ora locale italiana)
+        console.log(`✅ Post scheduled on OnlySocial, UUID: ${postId}`)
+        
+        // Step 4: Salva nel database (già UTC!)
         const scheduledPost = await prisma.scheduledPost.create({
           data: {
             userId: user.id,
@@ -236,7 +195,7 @@ export async function POST(request: NextRequest) {
             onlySocialMediaUrl: mediaData.url,
             caption: video.caption,
             postType: video.postType,
-            scheduledFor: scheduledDateLocal, // Usa ora locale per il database
+            scheduledFor: scheduledDateUTC, // GIÀ UTC!
             status: 'SCHEDULED',
             uploadedToOSAt: new Date(),
             scheduledAt: new Date()
@@ -246,7 +205,7 @@ export async function POST(request: NextRequest) {
         results.uploadedNow.push({
           id: scheduledPost.id,
           filename: video.videoFilename,
-          scheduledFor: `${video.year}-${video.month}-${video.day} ${video.hour}:${video.minute}`,
+          scheduledFor: video.scheduledFor, // ISO string UTC
           onlySocialMediaId: String(mediaId),
           onlySocialPostId: postId
         })
@@ -256,7 +215,7 @@ export async function POST(request: NextRequest) {
         console.error(`❌ Error processing video ${video.videoFilename}:`, error)
         
         // Salva nel database con stato FAILED
-        const scheduledDate = new Date(video.year, video.month - 1, video.day, video.hour, video.minute)
+        const scheduledDateUTC = new Date(video.scheduledFor)
         await prisma.scheduledPost.create({
           data: {
             userId: user.id,
@@ -266,7 +225,7 @@ export async function POST(request: NextRequest) {
             videoSize: video.videoSize,
             caption: video.caption,
             postType: video.postType,
-            scheduledFor: scheduledDate,
+            scheduledFor: scheduledDateUTC,
             status: 'FAILED',
             errorMessage: errorMessage
           }
@@ -284,8 +243,8 @@ export async function POST(request: NextRequest) {
       try {
         console.log(`💾 Saving video for later upload: ${video.videoFilename}`)
         
-        const scheduledDate = new Date(video.year, video.month - 1, video.day, video.hour, video.minute)
-        const willUploadAt = new Date(scheduledDate.getTime() - 60 * 60 * 1000) // 1 ora prima
+        const scheduledDateUTC = new Date(video.scheduledFor)
+        const willUploadAt = new Date(scheduledDateUTC.getTime() - 60 * 60 * 1000) // 1 ora prima
         
         const scheduledPost = await prisma.scheduledPost.create({
           data: {
@@ -296,7 +255,7 @@ export async function POST(request: NextRequest) {
             videoSize: video.videoSize,
             caption: video.caption,
             postType: video.postType,
-            scheduledFor: scheduledDate,
+            scheduledFor: scheduledDateUTC, // GIÀ UTC!
             status: 'VIDEO_UPLOADED_DO' // Video su DigitalOcean, non ancora su OnlySocial
           }
         })
@@ -304,7 +263,7 @@ export async function POST(request: NextRequest) {
         results.savedForLater.push({
           id: scheduledPost.id,
           filename: video.videoFilename,
-          scheduledFor: `${video.year}-${video.month}-${video.day} ${video.hour}:${video.minute}`,
+          scheduledFor: video.scheduledFor, // ISO string UTC
           willUploadAt: willUploadAt.toISOString()
         })
         

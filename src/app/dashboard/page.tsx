@@ -220,23 +220,35 @@ export default function DashboardPage() {
       throw new Error('Nessun profilo selezionato')
     }
 
+    // Importa fromZonedTime per conversione timezone
+    const { fromZonedTime } = await import('date-fns-tz')
+    
+    // Ottieni il timezone dell'utente (TODO: prendere da user settings, per ora usa Europe/Rome)
+    const userTimezone = 'Europe/Rome'
+
     // Prepara i dati per l'API Smart Scheduling
     const videos = rows.map(row => {
       const video = videosToSchedule.find(v => v.id === row.videoId)
+      
+      // Crea data nel timezone dell'utente
+      const scheduledDateInUserTZ = new Date(row.year, row.month - 1, row.day, row.hour, row.minute)
+      
+      // CONVERTI IN UTC SUBITO! Il DB salverà questo valore UTC
+      const scheduledDateUTC = fromZonedTime(scheduledDateInUserTZ, userTimezone)
+      
+      console.log(`📅 Scheduling video: ${video?.name}`)
+      console.log(`   User input (${userTimezone}): ${row.year}-${row.month}-${row.day} ${row.hour}:${row.minute}`)
+      console.log(`   Converted to UTC: ${scheduledDateUTC.toISOString()}`)
       
       return {
         socialAccountId: selectedProfile.id,
         videoUrl: video?.url || '',
         videoFilename: video?.name || 'video.mp4',
-        videoSize: 0, // Placeholder - il backend potrebbe calcolare questo
+        videoSize: 0,
         caption: row.caption,
         postType: row.postType || 'post',
-        // Passa i componenti separati per evitare conversioni UTC
-        year: row.year,
-        month: row.month,
-        day: row.day,
-        hour: row.hour,
-        minute: row.minute,
+        // INVIA DIRETTAMENTE LA DATA UTC COME ISO STRING
+        scheduledFor: scheduledDateUTC.toISOString(),
       }
     })
 

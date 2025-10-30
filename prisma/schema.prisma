@@ -16,8 +16,10 @@ model User {
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
   isAdmin           Boolean            @default(false)
+  timezone          String             @default("Europe/Rome") // IANA timezone (es: Europe/Rome, America/New_York)
   adminAssociations AdminAssociation[]
   socialAccounts    SocialAccount[]
+  scheduledPosts    ScheduledPost[]
 
   @@map("users")
 }
@@ -63,7 +65,7 @@ model ScheduledPost {
   onlySocialMediaUrl String?
   caption            String
   postType           String
-  scheduledFor       DateTime
+  scheduledFor       DateTime   // SEMPRE IN UTC! Conversione fatta al momento dell'input
   status             PostStatus @default(PENDING)
   errorMessage       String?
   retryCount         Int        @default(0)
@@ -72,6 +74,7 @@ model ScheduledPost {
   uploadedToOSAt     DateTime?
   scheduledAt        DateTime?
   publishedAt        DateTime?
+  user               User       @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([status])
   @@index([scheduledFor])
