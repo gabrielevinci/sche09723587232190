@@ -2,7 +2,7 @@
  * API Route: GET /api/cron/pre-upload
  * Cron job che PRE-CARICA i video su OnlySocial 2 ore prima della pubblicazione
  * 
- * Esegui ogni ora: "0 * * * *"
+ * Esegui ogni ora (cron expression: 0 ogni ora)
  * 
  * Flusso:
  * 1. Trova post da pubblicare nelle prossime 2 ore (status: PENDING, preUploaded: false)

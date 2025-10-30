@@ -2,7 +2,7 @@
  * API Route: GET /api/cron/publish
  * Cron job che PUBBLICA i post all'ora programmata
  * 
- * Esegui ogni 5 minuti: "*/5 * * * *"
+ * Esegui ogni 5 minuti (cron expression: ogni 5 minuti)
  * 
  * Flusso:
  * 1. Trova post da pubblicare ORA (status: MEDIA_UPLOADED, scheduledFor in finestra ±5 minuti)
