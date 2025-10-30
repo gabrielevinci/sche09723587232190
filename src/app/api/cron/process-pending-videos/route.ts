@@ -39,14 +39,28 @@ export async function POST(request: NextRequest) {
     const oneHourFromNow = new Date(now.getTime() + 60 * 60 * 1000) // +1 ora
 
     // 2. Trova video da processare
-    // Cerca video con stato VIDEO_UPLOADED_DO che saranno pubblicati entro 1 ora
+    // AGGIORNATO: Usa i nuovi stati PENDING e MEDIA_UPLOADED
     const videosToProcess = await prisma.scheduledPost.findMany({
       where: {
-        status: 'VIDEO_UPLOADED_DO',
-        scheduledFor: {
-          lte: oneHourFromNow, // <= 1 ora da adesso
-          gte: now // >= adesso (non nel passato)
-        }
+        OR: [
+          {
+            // Post in attesa che devono essere caricati entro 1 ora
+            status: 'PENDING',
+            preUploaded: false,
+            scheduledFor: {
+              lte: oneHourFromNow,
+              gte: now
+            }
+          },
+          {
+            // Post già caricati da pubblicare entro 5 minuti
+            status: 'MEDIA_UPLOADED',
+            scheduledFor: {
+              lte: new Date(now.getTime() + 5 * 60 * 1000), // +5 minuti
+              gte: new Date(now.getTime() - 5 * 60 * 1000)  // -5 minuti
+            }
+          }
+        ]
       },
       orderBy: {
         scheduledFor: 'asc'
@@ -92,109 +106,119 @@ export async function POST(request: NextRequest) {
     // 4. Processa ogni video
     for (const video of videosToProcess) {
       try {
-        console.log(`🚀 Processing video ${video.id}: ${video.videoFilename}`)
+        const firstFilename = video.videoFilenames[0] || 'unknown'
+        console.log(`🚀 Processing post ${video.id}: ${firstFilename}`)
+        console.log(`   Videos: ${video.videoUrls.length}`)
         console.log(`   Scheduled for: ${video.scheduledFor.toISOString()}`)
+        console.log(`   Status: ${video.status}`)
         
-        // Step 1: Carica video su OnlySocial
-        const mediaResult = await onlySocialApi.uploadMedia({
-          file: video.videoUrl,
-          alt_text: video.caption
-        })
-        
-        interface MediaData {
-          id?: number
-          uuid?: string
-          url: string
-        }
-        
-        const mediaData = (mediaResult as { data: MediaData }).data
-        const mediaId = mediaData.id || mediaData.uuid
-        
-        console.log(`✅ Video uploaded to OnlySocial, ID: ${mediaId}`)
-        
-        // Step 2: Ottieni account social
-        const socialAccount = await prisma.socialAccount.findUnique({
-          where: { id: video.socialAccountId }
-        })
-        
-        if (!socialAccount) {
-          throw new Error(`Social account ${video.socialAccountId} not found`)
-        }
-        
-        // Step 3: Schedula post su OnlySocial
-        // video.scheduledFor è GIÀ IN UTC nel database!
-        // Estraiamo i componenti direttamente senza conversioni
-        const scheduledDateUTC = new Date(video.scheduledFor)
-        
-        // Estrai componenti UTC per OnlySocial API
-        const yearUTC = scheduledDateUTC.getUTCFullYear()
-        const monthUTC = scheduledDateUTC.getUTCMonth() + 1
-        const dayUTC = scheduledDateUTC.getUTCDate()
-        const hourUTC = scheduledDateUTC.getUTCHours()
-        const minuteUTC = scheduledDateUTC.getUTCMinutes()
-        
-        console.log(`📝 Creating post for account ID: ${socialAccount.accountId}`)
-        console.log(`   Scheduled (UTC from DB): ${scheduledDateUTC.toISOString()}`)
-        console.log(`   OnlySocial format: ${yearUTC}-${monthUTC}-${dayUTC} ${hourUTC}:${minuteUTC}`)
-        
-        // ✅ Usa il media ID già caricato, NON ri-caricare il video
-        const mediaIdNumber = typeof mediaId === 'string' ? parseInt(mediaId, 10) : mediaId as number
-        
-        const postResult = await onlySocialApi.createAndSchedulePostWithMediaIds(
-          socialAccount.accountId, // UUID dell'account OnlySocial
-          video.caption,
-          [mediaIdNumber], // Array di ID dei media già caricati
-          yearUTC,  // Componenti UTC
-          monthUTC,
-          dayUTC,
-          hourUTC,
-          minuteUTC,
-          video.postType
-        )
-        
-        const postId = postResult.postUuid
-        
-        console.log(`✅ Post scheduled on OnlySocial, UUID: ${postId}`)
-        
-        // Step 4: Aggiorna database
-        await prisma.scheduledPost.update({
-          where: { id: video.id },
-          data: {
-            status: 'SCHEDULED',
-            onlySocialMediaId: String(mediaId),
-            onlySocialPostId: String(postId),
-            onlySocialMediaUrl: mediaData.url,
-            uploadedToOSAt: new Date(),
-            scheduledAt: new Date(),
-            errorMessage: null,
-            retryCount: 0
+        // CASO 1: Post PENDING - Deve essere caricato
+        if (video.status === 'PENDING' && !video.preUploaded) {
+          console.log(`   → Pre-uploading videos...`)
+          
+          // Ottieni account ID intero
+          const accountId = await onlySocialApi.getAccountIntegerId(video.accountUuid)
+          
+          // Upload tutti i video
+          const mediaIds: string[] = []
+          for (let i = 0; i < video.videoUrls.length; i++) {
+            const videoUrl = video.videoUrls[i]
+            const videoName = video.videoFilenames[i] || `video-${i}.mp4`
+            
+            console.log(`     📹 Uploading video ${i + 1}/${video.videoUrls.length}...`)
+            
+            const mediaResult = await onlySocialApi.uploadMediaFromDigitalOcean(
+              videoUrl,
+              videoName,
+              `Video ${i + 1} - ${video.caption.substring(0, 50)}`
+            )
+            
+            mediaIds.push(mediaResult.id.toString())
+            console.log(`     ✅ Uploaded! Media ID: ${mediaResult.id}`)
           }
-        })
+          
+          console.log(`   ✅ All ${mediaIds.length} videos uploaded`)
+          
+          // Crea post (NON pubblica)
+          const { postUuid } = await onlySocialApi.createPostWithMediaIds(
+            video.accountUuid,
+            video.caption,
+            mediaIds.map(id => parseInt(id)),
+            video.postType
+          )
+          
+          console.log(`   ✅ Post created: ${postUuid}`)
+          
+          // Aggiorna database
+          await prisma.scheduledPost.update({
+            where: { id: video.id },
+            data: {
+              onlySocialMediaIds: mediaIds,
+              onlySocialPostUuid: postUuid,
+              accountId: accountId,
+              preUploaded: true,
+              preUploadAt: new Date(),
+              status: 'MEDIA_UPLOADED',
+              errorMessage: null,
+              retryCount: 0,
+              updatedAt: new Date()
+            }
+          })
+          
+          results.processed++
+          console.log(`   ✅ Post ${video.id} pre-uploaded successfully`)
+        }
         
-        results.processed++
-        console.log(`✅ Video ${video.id} processed successfully`)
+        // CASO 2: Post MEDIA_UPLOADED - Deve essere pubblicato
+        else if (video.status === 'MEDIA_UPLOADED' && video.onlySocialPostUuid) {
+          console.log(`   → Publishing post now...`)
+          
+          // Pubblica immediatamente
+          await onlySocialApi.publishPostNow(video.onlySocialPostUuid)
+          
+          console.log(`   ✅ Post published!`)
+          
+          // Aggiorna database
+          await prisma.scheduledPost.update({
+            where: { id: video.id },
+            data: {
+              status: 'PUBLISHED',
+              publishedAt: new Date(),
+              errorMessage: null,
+              updatedAt: new Date()
+            }
+          })
+          
+          results.processed++
+          console.log(`   ✅ Post ${video.id} published successfully`)
+        }
+        
+        else {
+          console.log(`   ⚠️ Skipping post ${video.id} - Invalid state: ${video.status}`)
+        }
         
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-        console.error(`❌ Error processing video ${video.id}:`, error)
+        console.error(`❌ Error processing post ${video.id}:`, error)
         
         // Aggiorna con errore
         const retryCount = video.retryCount + 1
-        const maxRetries = 3
+        const maxRetries = video.maxRetries || 3
         
         await prisma.scheduledPost.update({
           where: { id: video.id },
           data: {
-            status: retryCount >= maxRetries ? 'FAILED' : 'VIDEO_UPLOADED_DO',
+            status: retryCount >= maxRetries ? 'FAILED' : video.status,
             errorMessage: errorMessage,
-            retryCount: retryCount
+            retryCount: retryCount,
+            updatedAt: new Date()
           }
         })
         
         results.failed++
         results.errors.push({
           videoId: video.id,
-          filename: video.videoFilename,
+          filename: video.videoFilenames[0] || 'unknown',
           error: errorMessage,
           retryCount: retryCount
         })
