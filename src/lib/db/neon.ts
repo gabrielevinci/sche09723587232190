@@ -84,8 +84,8 @@ export async function getPostsDueForPreUpload(hoursAhead: number = 2) {
  */
 export async function getPostsDueForPublishing(minutesWindow: number = 5) {
   const now = new Date()
-  // Finestra estesa nel passato (30 minuti) per recuperare post in ritardo
-  const past = new Date(now.getTime() - 30 * 60000)
+  // Finestra estesa nel passato (2 ore) per recuperare post in ritardo
+  const past = new Date(now.getTime() - 120 * 60000)
   // Finestra normale nel futuro (minutesWindow)
   const future = new Date(now.getTime() + minutesWindow * 60000)
 

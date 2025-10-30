@@ -55,11 +55,11 @@ export async function POST(request: NextRequest) {
           },
           {
             // Post già caricati da pubblicare entro finestra temporale
-            // Usa finestra estesa nel passato (30 minuti) per recuperare post in ritardo
+            // Usa finestra estesa nel passato (2 ore) per recuperare post in ritardo
             status: 'MEDIA_UPLOADED',
             scheduledFor: {
-              lte: new Date(now.getTime() + 5 * 60 * 1000),   // +5 minuti
-              gte: new Date(now.getTime() - 30 * 60 * 1000)  // -30 minuti (estesa)
+              lte: new Date(now.getTime() + 5 * 60 * 1000),    // +5 minuti
+              gte: new Date(now.getTime() - 120 * 60 * 1000)  // -2 ore (finestra molto estesa)
             }
           }
         ]
