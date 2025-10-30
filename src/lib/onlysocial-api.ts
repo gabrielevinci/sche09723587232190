@@ -310,7 +310,9 @@ export class OnlySocialAPI {
       if (response.status === 200 || response.status === 201) {
         const data = JSON.parse(responseText)
         console.log('✅ Video uploaded successfully to OnlySocial!')
-        console.log(`   Media ID: ${data.id}`)
+        console.log(`   📋 Full response data:`, JSON.stringify(data, null, 2))
+        console.log(`   🔍 data.id = ${data.id} (type: ${typeof data.id})`)
+        console.log(`   🔍 data.uuid = ${data.uuid}`)
         console.log(`   Media URL: ${data.url}`)
         if (data.thumb_url) {
           console.log(`   Thumbnail: ${data.thumb_url}`)

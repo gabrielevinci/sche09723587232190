@@ -1,46 +1,118 @@
-# Fix Errore "no_media_selected" + Log Migliorati
+# Fix Errore "no_media_selected" + Bug Media ID
 
-## 🐛 Problema Risolto
+## 🐛 Due Problemi Risolti
 
+### Problema 1: "no_media_selected"
 **Errore**: `[ "mixpost::service.post.no_media_selected" ]`
 
-### Causa
+#### Causa
 Il sistema creava il post su OnlySocial durante il **pre-upload** e poi cercava di pubblicarlo in un secondo momento. Questo causava problemi perché:
 1. Il post veniva creato ma i media non erano correttamente associati
 2. Quando si chiamava `publishPostNow()`, OnlySocial non trovava i media
 
-### Soluzione ✅
+#### Soluzione ✅
+Post creato SOLO al momento della pubblicazione
 
-**NUOVO FLUSSO (2025-10-30):**
+### Problema 2: Media ID Errato nel Database ❗
+**Errore Critico**: OnlySocial restituiva ID `872079` ma nel database veniva salvato `872080`
 
-1. **Pre-Upload (PENDING → MEDIA_UPLOADED)**:
-   - ✅ Carica video su OnlySocial
-   - ✅ Salva solo i `mediaIds` nel database
-   - ❌ **NON crea** il post su OnlySocial
-   - Imposta `onlySocialPostUuid = null`
+#### Causa
+```typescript
+// OLD CODE (BROKEN):
+const videosToProcess = await prisma.findMany({ ... }) // Query unica
 
-2. **Publish (MEDIA_UPLOADED → PUBLISHED)**:
-   - ✅ Crea il post su OnlySocial con i `mediaIds` pre-caricati
-   - ✅ Pubblica immediatamente il post appena creato
-   - ✅ Media correttamente associati al post
+for (video of videosToProcess) {
+  if (video.status === 'PENDING') {
+    // Upload video → salva mediaId nel DB
+    await prisma.update({ onlySocialMediaIds: [872079] })
+    // video.onlySocialMediaIds è ancora null in memoria!
+  }
+  
+  if (video.status === 'MEDIA_UPLOADED') {
+    // BUG: video.onlySocialMediaIds è null/vecchio
+    // Usa valore stantio dal database iniziale
+  }
+}
+```
+
+**Root Cause**: 
+- Una sola query all'inizio recuperava tutti i post
+- Gli oggetti `video` in memoria contenevano dati vecchi
+- Quando un post passava da PENDING → MEDIA_UPLOADED nello stesso ciclo,
+  la variabile `video.onlySocialMediaIds` era ancora `null` o conteneva un vecchio valore
+
+#### Soluzione ✅
+**DUE query separate + DUE cicli separati**:
+
+```typescript
+// NEW CODE (FIXED):
+// FASE 1: Query solo PENDING
+const pendingVideos = await prisma.findMany({ status: 'PENDING' })
+
+for (video of pendingVideos) {
+  // Upload video → salva mediaId nel DB
+  await prisma.update({ onlySocialMediaIds: [872079] })
+}
+
+// FASE 2: Query solo MEDIA_UPLOADED (FRESCA dal database!)
+const uploadedVideos = await prisma.findMany({ status: 'MEDIA_UPLOADED' })
+
+for (video of uploadedVideos) {
+  // video.onlySocialMediaIds è fresco dal database
+  // Ha il valore corretto: [872079]
+  createPost(video.onlySocialMediaIds) // ✅ USA ID CORRETTO
+}
+```
+
+**Vantaggi**:
+- ✅ Ogni fase usa dati freschi dal database
+- ✅ Nessuna variabile in memoria stantia
+- ✅ I post vengono processati in run successivi (più sicuro)
+
+---
+
+## 🔄 NUOVO FLUSSO (2025-10-30)
+
+### FASE 1: PRE-UPLOAD (PENDING → MEDIA_UPLOADED)
+```typescript
+1. Query PENDING posts (1 ora prima della schedulazione)
+2. Upload video su OnlySocial → ottieni mediaId
+3. Salva SOLO mediaId nel database
+4. ❌ NON creare il post
+5. Status: MEDIA_UPLOADED
+```
+
+### FASE 2: PUBLISH (MEDIA_UPLOADED → PUBLISHED)
+```typescript
+1. Query MEDIA_UPLOADED posts (ora schedulazione ±2h)
+2. Leggi mediaIds FRESCHI dal database
+3. ✅ Crea post su OnlySocial CON mediaIds
+4. ✅ Pubblica immediatamente il post
+5. Status: PUBLISHED
+```
 
 ### Differenza Chiave
 
 **PRIMA (NON FUNZIONAVA):**
 ```typescript
-// Pre-upload
-uploadMedia() → createPostWithMediaIds() → publishPostNow() [DOPO]
-// ❌ Problema: post creato ma media non associati correttamente
+// Upload
+uploadMedia() → saveMediaId(872079)
+
+// Publish (stesso ciclo, dati stantii!)
+const mediaId = video.onlySocialMediaIds // null o vecchio!
+createPost(mediaId) // ❌ usa ID sbagliato
 ```
 
 **ADESSO (FUNZIONA):**
 ```typescript
-// Pre-upload
-uploadMedia() → salva mediaIds
+// RUN 1: Pre-upload
+uploadMedia() → saveMediaId(872079)
+// Fine ciclo PENDING
 
-// Publish
-createPostWithMediaIds() → publishPostNow() [SUBITO]
-// ✅ Media appena associati al post, pubblicazione immediata
+// RUN 2: Publish (nuovo ciclo, nuova query!)
+const freshVideo = await prisma.findOne() // Query fresca
+const mediaId = freshVideo.onlySocialMediaIds // 872079 ✅
+createPost(mediaId) → publishNow() // ✅ ID CORRETTO
 ```
 
 ---
