@@ -156,41 +156,72 @@ export async function POST(request: NextRequest) {
           throw new Error(`Social account ${video.socialAccountId} not found`)
         }
         
-        // Step 3: Schedula post su OnlySocial
+        // Step 3: Determina se schedulare o pubblicare immediatamente
         // IMPORTANTE: OnlySocial interpreta scheduleTime come UTC!
         // Dobbiamo convertire l'ora italiana in UTC prima di inviare
         const scheduledDateLocal = new Date(video.year, video.month - 1, video.day, video.hour, video.minute)
         const scheduledDateUTC = fromZonedTime(scheduledDateLocal, 'Europe/Rome')
         
-        // Estrai componenti UTC
-        const yearUTC = scheduledDateUTC.getUTCFullYear()
-        const monthUTC = scheduledDateUTC.getUTCMonth() + 1
-        const dayUTC = scheduledDateUTC.getUTCDate()
-        const hourUTC = scheduledDateUTC.getUTCHours()
-        const minuteUTC = scheduledDateUTC.getUTCMinutes()
+        // Controlla se il tempo schedulato è troppo vicino (< 10 minuti)
+        // Per evitare errori "date is in the past" a causa del processing time
+        const now = new Date()
+        const tenMinutesFromNow = new Date(now.getTime() + 10 * 60 * 1000)
+        const shouldPublishNow = scheduledDateUTC <= tenMinutesFromNow
         
         console.log(`📝 Creating post for account ID: ${socialAccount.accountId}`)
         console.log(`⏰ Scheduled for (local IT): ${video.year}-${video.month}-${video.day} ${video.hour}:${video.minute}`)
-        console.log(`⏰ Scheduled for (UTC): ${yearUTC}-${monthUTC}-${dayUTC} ${hourUTC}:${minuteUTC}`)
+        console.log(`⏰ Scheduled for (UTC): ${scheduledDateUTC.toISOString()}`)
+        console.log(`⏰ Now (UTC): ${now.toISOString()}`)
+        console.log(`⏰ Time until scheduled: ${Math.round((scheduledDateUTC.getTime() - now.getTime()) / 1000 / 60)} minutes`)
         
         // ✅ Usa il media ID già caricato, NON ri-caricare il video
         const mediaIdNumber = typeof mediaId === 'string' ? parseInt(mediaId, 10) : mediaId as number
         
-        const postResult = await onlySocialApi.createAndSchedulePostWithMediaIds(
-          socialAccount.accountId, // UUID dell'account OnlySocial
-          video.caption,
-          [mediaIdNumber], // Array di ID dei media già caricati
-          yearUTC,  // USA UTC!
-          monthUTC,
-          dayUTC,
-          hourUTC,
-          minuteUTC,
-          video.postType
-        )
+        let postId: string
         
-        const postId = postResult.postUuid
-        
-        console.log(`✅ Post scheduled on OnlySocial, UUID: ${postId}`)
+        if (shouldPublishNow) {
+          // PUBBLICA IMMEDIATAMENTE (troppo vicino per schedulare)
+          console.log(`🚀 Publishing NOW (too close to schedule safely)`)
+          
+          const { postUuid } = await onlySocialApi.createPostWithMediaIds(
+            socialAccount.accountId,
+            video.caption,
+            [mediaIdNumber],
+            video.postType
+          )
+          
+          postId = postUuid
+          
+          // Pubblica immediatamente
+          await onlySocialApi.publishPostNow(postId)
+          console.log(`✅ Post published immediately!`)
+          
+        } else {
+          // SCHEDULA per dopo (abbastanza tempo)
+          console.log(`📅 Scheduling for later`)
+          
+          // Estrai componenti UTC
+          const yearUTC = scheduledDateUTC.getUTCFullYear()
+          const monthUTC = scheduledDateUTC.getUTCMonth() + 1
+          const dayUTC = scheduledDateUTC.getUTCDate()
+          const hourUTC = scheduledDateUTC.getUTCHours()
+          const minuteUTC = scheduledDateUTC.getUTCMinutes()
+          
+          const postResult = await onlySocialApi.createAndSchedulePostWithMediaIds(
+            socialAccount.accountId,
+            video.caption,
+            [mediaIdNumber],
+            yearUTC,
+            monthUTC,
+            dayUTC,
+            hourUTC,
+            minuteUTC,
+            video.postType
+          )
+          
+          postId = postResult.postUuid
+          console.log(`✅ Post scheduled on OnlySocial, UUID: ${postId}`)
+        }
         
         // Step 4: Salva nel database (usa ora locale italiana)
         const scheduledPost = await prisma.scheduledPost.create({
