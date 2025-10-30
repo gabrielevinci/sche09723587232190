@@ -1,13 +1,15 @@
 /**
  * Cron Job Endpoint - Process Pending Videos
  * 
- * Questo endpoint viene chiamato da cron-job.org ogni 10 minuti.
- * Controlla i video schedulati e carica su OnlySocial quelli da pubblicare entro 1 ora.
+ * FLUSSO OTTIMIZZATO (2025-10-30):
+ * 1. Pre-Upload (PENDING → MEDIA_UPLOADED): Solo carica video, NON crea post
+ * 2. Publish (MEDIA_UPLOADED → PUBLISHED): Crea post + pubblica immediatamente
  * 
- * Configurazione cron-job.org:
- * - URL: https://your-app.vercel.app/api/cron/process-pending-videos
- * - Frequenza: Ogni 10 minuti
- * - Headers: Authorization: Bearer YOUR_CRON_SECRET
+ * Questo risolve l'errore "no_media_selected" perché i media vengono
+ * associati al post solo al momento della pubblicazione.
+ * 
+ * Configurazione: Ogni 5 minuti (bilanciato)
+ * Headers: Authorization: Bearer YOUR_CRON_SECRET
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -34,32 +36,40 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log('🔄 Cron job started: Processing pending videos')
+    // =====================================
+    // 🚀 INIZIO CRON JOB
+    // =====================================
     const now = new Date()
-    const oneHourFromNow = new Date(now.getTime() + 60 * 60 * 1000) // +1 ora
+    const startTime = Date.now()
+    console.log('\n' + '='.repeat(60))
+    console.log('🔄 CRON JOB STARTED - Process Pending Videos')
+    console.log('='.repeat(60))
+    console.log(`⏰ Timestamp: ${now.toISOString()}`)
+    
+    const oneHourFromNow = new Date(now.getTime() + 60 * 60 * 1000)
 
-    // 2. Trova video da processare
-    // AGGIORNATO (2025-10-30): Include anche post nel passato per recuperare post "saltati"
+    // =====================================
+    // 📊 QUERY DATABASE
+    // =====================================
+    console.log('\n📊 Querying database for posts to process...')
+    
     const videosToProcess = await prisma.scheduledPost.findMany({
       where: {
         OR: [
           {
             // Post in attesa che devono essere caricati entro 1 ora
-            // INCLUDE anche post nel passato (rimosso gte: now)
             status: 'PENDING',
             preUploaded: false,
             scheduledFor: {
               lte: oneHourFromNow,
-              // ✅ RIMOSSO gte: now per includere post nel passato
             }
           },
           {
-            // Post già caricati da pubblicare entro finestra temporale
-            // Usa finestra estesa nel passato (2 ore) per recuperare post in ritardo
+            // Post già caricati da pubblicare (finestra: -2h a +5min)
             status: 'MEDIA_UPLOADED',
             scheduledFor: {
-              lte: new Date(now.getTime() + 5 * 60 * 1000),    // +5 minuti
-              gte: new Date(now.getTime() - 120 * 60 * 1000)  // -2 ore (finestra molto estesa)
+              lte: new Date(now.getTime() + 5 * 60 * 1000),
+              gte: new Date(now.getTime() - 120 * 60 * 1000)
             }
           }
         ]
@@ -69,9 +79,16 @@ export async function POST(request: NextRequest) {
       }
     })
 
-    console.log(`📊 Found ${videosToProcess.length} videos to process`)
+    const pendingCount = videosToProcess.filter(v => v.status === 'PENDING').length
+    const uploadedCount = videosToProcess.filter(v => v.status === 'MEDIA_UPLOADED').length
+    
+    console.log(`   ✅ Found ${videosToProcess.length} posts total`)
+    console.log(`      - PENDING (to pre-upload): ${pendingCount}`)
+    console.log(`      - MEDIA_UPLOADED (to publish): ${uploadedCount}`)
 
     if (videosToProcess.length === 0) {
+      console.log('   ℹ️  No videos to process at this time')
+      console.log('=' .repeat(60) + '\n')
       return NextResponse.json({
         success: true,
         message: 'No videos to process',
@@ -79,7 +96,11 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // 3. Inizializza OnlySocial API
+    // =====================================
+    // 🔧 INIZIALIZZA ONLYSOCIAL API
+    // =====================================
+    console.log('\n🔧 Initializing OnlySocial API...')
+    
     const onlySocialToken = process.env.ONLYSOCIAL_API_KEY
     const workspaceUuid = process.env.ONLYSOCIAL_WORKSPACE_UUID
 
@@ -91,35 +112,50 @@ export async function POST(request: NextRequest) {
       token: onlySocialToken,
       workspaceUuid: workspaceUuid
     })
+    
+    console.log(`   ✅ API initialized (Workspace: ${workspaceUuid.substring(0, 8)}...)`)
 
+    // =====================================
+    // 🔄 PROCESSA OGNI POST
+    // =====================================
+    console.log('\n🔄 Processing posts...\n')
+    
     interface VideoError {
       videoId: string
       filename: string
       error: string
       retryCount: number
     }
-
+    
     const results = {
-      processed: 0,
+      preUploaded: 0,
+      published: 0,
       failed: 0,
       errors: [] as VideoError[]
     }
 
     // 4. Processa ogni video
-    for (const video of videosToProcess) {
+    for (let index = 0; index < videosToProcess.length; index++) {
+      const video = videosToProcess[index]
+      const firstFilename = video.videoFilenames[0] || 'unknown'
+      const diffMinutes = Math.round((video.scheduledFor.getTime() - now.getTime()) / 60000)
+      
+      console.log(`\n[${ index + 1}/${videosToProcess.length}] 📌 Post ID: ${video.id}`)
+      console.log(`   Caption: ${video.caption.substring(0, 60)}...`)
+      console.log(`   Filename: ${firstFilename}`)
+      console.log(`   Status: ${video.status}`)
+      console.log(`   Scheduled: ${video.scheduledFor.toISOString()} (${diffMinutes > 0 ? '+' : ''}${diffMinutes}min)`)
+      
       try {
-        const firstFilename = video.videoFilenames[0] || 'unknown'
-        console.log(`🚀 Processing post ${video.id}: ${firstFilename}`)
-        console.log(`   Videos: ${video.videoUrls.length}`)
-        console.log(`   Scheduled for: ${video.scheduledFor.toISOString()}`)
-        console.log(`   Status: ${video.status}`)
-        
-        // CASO 1: Post PENDING - Deve essere caricato
+        // =====================================
+        // CASO 1: PENDING → Pre-upload video
+        // =====================================
         if (video.status === 'PENDING' && !video.preUploaded) {
-          console.log(`   → Pre-uploading videos...`)
+          console.log(`   🔄 Action: PRE-UPLOAD (carica video su OnlySocial)`)
           
           // Ottieni account ID intero
           const accountId = await onlySocialApi.getAccountIntegerId(video.accountUuid)
+          console.log(`   👤 Account ID: ${accountId}`)
           
           // Upload tutti i video
           const mediaIds: string[] = []
@@ -127,7 +163,7 @@ export async function POST(request: NextRequest) {
             const videoUrl = video.videoUrls[i]
             const videoName = video.videoFilenames[i] || `video-${i}.mp4`
             
-            console.log(`     📹 Uploading video ${i + 1}/${video.videoUrls.length}...`)
+            console.log(`   📹 Uploading video ${i + 1}/${video.videoUrls.length}: ${videoName}`)
             
             const mediaResult = await onlySocialApi.uploadMediaFromDigitalOcean(
               videoUrl,
@@ -136,27 +172,21 @@ export async function POST(request: NextRequest) {
             )
             
             mediaIds.push(mediaResult.id.toString())
-            console.log(`     ✅ Uploaded! Media ID: ${mediaResult.id}`)
+            console.log(`      ✅ Uploaded! Media ID: ${mediaResult.id}`)
           }
           
-          console.log(`   ✅ All ${mediaIds.length} videos uploaded`)
+          console.log(`   ✅ All ${mediaIds.length} video(s) uploaded successfully`)
           
-          // Crea post (NON pubblica)
-          const { postUuid } = await onlySocialApi.createPostWithMediaIds(
-            video.accountUuid,
-            video.caption,
-            mediaIds.map(id => parseInt(id)),
-            video.postType
-          )
-          
-          console.log(`   ✅ Post created: ${postUuid}`)
+          // ⚠️ NON creare il post ora! Solo salvare i media IDs
+          // Il post verrà creato al momento della pubblicazione
+          console.log(`   💾 Saving media IDs to database (NO post creation yet)`)
           
           // Aggiorna database
           await prisma.scheduledPost.update({
             where: { id: video.id },
             data: {
               onlySocialMediaIds: mediaIds,
-              onlySocialPostUuid: postUuid,
+              onlySocialPostUuid: null, // ⚠️ NULL perché il post non è ancora creato
               accountId: accountId,
               preUploaded: true,
               preUploadAt: new Date(),
@@ -167,23 +197,49 @@ export async function POST(request: NextRequest) {
             }
           })
           
-          results.processed++
-          console.log(`   ✅ Post ${video.id} pre-uploaded successfully`)
+          results.preUploaded++
+          console.log(`   ✅ PRE-UPLOAD COMPLETED - Status: MEDIA_UPLOADED`)
         }
         
-        // CASO 2: Post MEDIA_UPLOADED - Deve essere pubblicato
-        else if (video.status === 'MEDIA_UPLOADED' && video.onlySocialPostUuid) {
-          console.log(`   → Publishing post now...`)
+        // =====================================
+        // CASO 2: MEDIA_UPLOADED → Pubblica
+        // =====================================
+        else if (video.status === 'MEDIA_UPLOADED') {
+          console.log(`   🔄 Action: PUBLISH (crea post + pubblica immediatamente)`)
+          
+          // Verifica che i media IDs esistano
+          if (!video.onlySocialMediaIds || video.onlySocialMediaIds.length === 0) {
+            throw new Error('No media IDs found - post was not properly pre-uploaded')
+          }
+          
+          console.log(`   📦 Media IDs: ${video.onlySocialMediaIds.join(', ')}`)
+          
+          // Converti media IDs in numeri
+          const mediaIdsNumbers = video.onlySocialMediaIds.map(id => parseInt(id, 10))
+          
+          // ⚠️ NUOVO APPROCCIO: Crea il post ADESSO (non durante pre-upload)
+          console.log(`   📝 Creating post on OnlySocial with pre-uploaded media...`)
+          
+          const { postUuid } = await onlySocialApi.createPostWithMediaIds(
+            video.accountUuid,
+            video.caption,
+            mediaIdsNumbers,
+            video.postType
+          )
+          
+          console.log(`   ✅ Post created! UUID: ${postUuid}`)
           
           // Pubblica immediatamente
-          await onlySocialApi.publishPostNow(video.onlySocialPostUuid)
+          console.log(`   🚀 Publishing post NOW...`)
+          const publishResult = await onlySocialApi.publishPostNow(postUuid)
           
-          console.log(`   ✅ Post published!`)
+          console.log(`   ✅ Post published successfully!`)
           
           // Aggiorna database
           await prisma.scheduledPost.update({
             where: { id: video.id },
             data: {
+              onlySocialPostUuid: postUuid,
               status: 'PUBLISHED',
               publishedAt: new Date(),
               errorMessage: null,
@@ -191,17 +247,17 @@ export async function POST(request: NextRequest) {
             }
           })
           
-          results.processed++
-          console.log(`   ✅ Post ${video.id} published successfully`)
+          results.published++
+          console.log(`   ✅ PUBLISH COMPLETED - Status: PUBLISHED`)
         }
         
         else {
-          console.log(`   ⚠️ Skipping post ${video.id} - Invalid state: ${video.status}`)
+          console.log(`   ⚠️  SKIPPED - Invalid state (status: ${video.status}, preUploaded: ${video.preUploaded})`)
         }
         
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-        console.error(`❌ Error processing post ${video.id}:`, error)
+        console.log(`   ❌ ERROR: ${errorMessage}`)
         
         // Aggiorna con errore
         const retryCount = video.retryCount + 1
@@ -227,25 +283,56 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    console.log(`✅ Cron job completed`)
-    console.log(`   - Processed: ${results.processed}`)
+    // =====================================
+    // ✅ RIEPILOGO FINALE
+    // =====================================
+    const totalProcessed = results.preUploaded + results.published
+    const elapsedTime = ((Date.now() - startTime) / 1000).toFixed(2)
+    
+    console.log('\n' + '='.repeat(60))
+    console.log('✅ CRON JOB COMPLETED')
+    console.log('='.repeat(60))
+    console.log(`⏱️  Execution time: ${elapsedTime}s`)
+    console.log(`📊 Summary:`)
+    console.log(`   - Pre-uploaded: ${results.preUploaded}`)
+    console.log(`   - Published: ${results.published}`)
     console.log(`   - Failed: ${results.failed}`)
+    console.log(`   - Total processed: ${totalProcessed}`)
+    
+    if (results.errors.length > 0) {
+      console.log(`\n⚠️  Errors:`)
+      results.errors.forEach((err, idx) => {
+        console.log(`   ${idx + 1}. ${err.filename}: ${err.error} (retry ${err.retryCount}/${err.retryCount >= 3 ? 'MAX' : '3'})`)
+      })
+    }
+    
+    console.log('='.repeat(60) + '\n')
 
     return NextResponse.json({
       success: true,
       summary: {
         total: videosToProcess.length,
-        processed: results.processed,
-        failed: results.failed
+        preUploaded: results.preUploaded,
+        published: results.published,
+        failed: results.failed,
+        executionTime: `${elapsedTime}s`
       },
       errors: results.errors
     })
 
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Internal server error'
-    console.error('❌ Cron job error:', error)
+    console.error('\n' + '='.repeat(60))
+    console.error('❌ CRON JOB ERROR')
+    console.error('='.repeat(60))
+    console.error(`Error: ${errorMessage}`)
+    console.error('='.repeat(60) + '\n')
+    
     return NextResponse.json(
-      { error: errorMessage },
+      { 
+        success: false,
+        error: errorMessage 
+      },
       { status: 500 }
     )
   }
@@ -257,8 +344,11 @@ export async function GET() {
     status: 'ok',
     message: 'Cron endpoint is ready. Use POST with Authorization header.',
     info: {
-      frequency: 'Every 10 minutes',
-      action: 'Process videos scheduled within 1 hour'
+      frequency: 'Every 5 minutes (recommended)',
+      phases: {
+        preUpload: 'PENDING → MEDIA_UPLOADED (uploads videos, saves media IDs)',
+        publish: 'MEDIA_UPLOADED → PUBLISHED (creates post + publishes immediately)'
+      }
     }
   })
 }
