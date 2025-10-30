@@ -5,7 +5,7 @@
  */
 
 import { prisma } from '@/lib/prisma'
-import { PostStatus } from '@prisma/client'
+import { PostStatus, Prisma } from '@prisma/client'
 
 export interface SaveScheduledPostData {
   userId: string
@@ -190,7 +190,7 @@ export async function listScheduledPosts(
     toDate?: Date
   }
 ) {
-  const where: any = { userId }
+  const where: Prisma.ScheduledPostWhereInput = { userId }
 
   if (filters?.status) {
     where.status = filters.status
