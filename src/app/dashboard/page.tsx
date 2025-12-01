@@ -224,8 +224,11 @@ export default function DashboardPage() {
     // Timezone italiano fisso (Europe/Rome = UTC+1)
     const userTimezone = 'Europe/Rome'
 
-    // Prepara i dati per l'API di salvataggio
-    const videos = rows.map(row => {
+    console.log(`🎬 Scheduling ${rows.length} videos individually...`)
+
+    // Processa ogni video separatamente per creare una riga nel database per ognuno
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i]
       const video = videosToSchedule.find(v => v.id === row.videoId)
       
       // Crea una stringa di data in formato ISO con orario italiano
@@ -239,50 +242,43 @@ export default function DashboardPage() {
       // Crea la stringa ISO con offset italiano esplicito
       const scheduledForISO = `${year}-${month}-${day}T${hour}:${minute}:00+01:00`
       
-      console.log(`📅 Scheduling video: ${video?.name}`)
+      console.log(`📅 [${i + 1}/${rows.length}] Scheduling video: ${video?.name}`)
       console.log(`   Orario italiano: ${row.year}-${row.month}-${row.day} ${row.hour}:${row.minute}`)
       console.log(`   Stringa ISO: ${scheduledForISO}`)
-      
-      return {
-        socialAccountId: selectedProfile.id,
-        videoUrl: video?.url || '',
-        videoFilename: video?.name || 'video.mp4',
-        videoSize: 0,
-        caption: row.caption,
-        postType: row.postType || 'post',
-        // Invia la data con offset italiano esplicito (+01:00)
-        scheduledFor: scheduledForISO,
+      console.log(`   Caption: ${row.caption || '(vuota)'}`)
+      console.log(`   PostType: ${row.postType}`)
+
+      // Salva ogni video separatamente nel database
+      const response = await fetch('/api/posts/schedule', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          socialAccountId: selectedProfile.id,
+          accountUuid: selectedProfile.accountUuid,
+          accountId: selectedProfile.accountId ? parseInt(selectedProfile.accountId, 10) : undefined,
+          caption: row.caption || '',
+          postType: row.postType || 'post',
+          videoUrls: [video?.url || ''], // Array con un solo video
+          videoFilenames: [video?.name || 'video.mp4'],
+          videoSizes: [0],
+          scheduledFor: scheduledForISO,
+          timezone: userTimezone,
+        }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(`Errore video ${i + 1}: ${error.error || 'Errore durante il salvataggio'}`)
       }
-    })
 
-    // Salva i video nel database
-    const response = await fetch('/api/posts/schedule', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        socialAccountId: selectedProfile.id,
-        accountUuid: selectedProfile.accountUuid,
-        accountId: selectedProfile.accountId ? parseInt(selectedProfile.accountId, 10) : undefined,
-        caption: videos[0].caption,
-        postType: videos[0].postType,
-        videoUrls: videos.map(v => v.videoUrl),
-        videoFilenames: videos.map(v => v.videoFilename),
-        videoSizes: videos.map(v => v.videoSize),
-        scheduledFor: videos[0].scheduledFor,
-        timezone: userTimezone,
-      }),
-    })
-
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error || 'Errore durante il salvataggio')
+      const result = await response.json()
+      console.log(`✅ [${i + 1}/${rows.length}] Video salvato nel database:`, result.postId)
+      console.log(`   Programmato per: ${new Date(scheduledForISO).toLocaleString('it-IT')}`)
     }
 
-    const result = await response.json()
-    console.log('✅ Video salvati nel database:', result)
-    console.log(`📅 Programmati per: ${new Date(videos[0].scheduledFor).toLocaleString('it-IT')}`)
+    console.log(`✅ Tutti i ${rows.length} video sono stati schedulati con successo!`)
 
     // Chiudi il drawer senza popup
     setVideosToSchedule([])
