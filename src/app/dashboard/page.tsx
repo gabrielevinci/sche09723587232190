@@ -281,12 +281,10 @@ export default function DashboardPage() {
     }
 
     const result = await response.json()
-    console.log('📊 Video salvati nel database:', result)
-    
-    // Mostra un messaggio informativo all'utente
-    alert(`✅ Video salvati con successo nel database!\n\nProgrammati per: ${new Date(videos[0].scheduledFor).toLocaleString('it-IT')}`)
+    console.log('✅ Video salvati nel database:', result)
+    console.log(`📅 Programmati per: ${new Date(videos[0].scheduledFor).toLocaleString('it-IT')}`)
 
-    // Chiudi il drawer
+    // Chiudi il drawer senza popup
     setVideosToSchedule([])
     setSelectedProfile(null)
   }

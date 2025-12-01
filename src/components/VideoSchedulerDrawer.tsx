@@ -243,11 +243,6 @@ export default function VideoSchedulerDrawer({ videos, onSchedule }: VideoSchedu
         return
       }
 
-      if (!caption || caption.trim() === '') {
-        errors.push(`Riga ${index + 1}: Didascalia mancante`)
-        return
-      }
-
       if (!postType || !['reel', 'story', 'post'].includes(postType)) {
         errors.push(`Riga ${index + 1}: Tipologia non valida (scegli: reel, story, post)`)
         return
@@ -261,13 +256,13 @@ export default function VideoSchedulerDrawer({ videos, onSchedule }: VideoSchedu
 
       // Verifica che il video sia programmato con almeno 1 ora di anticipo
       if (!isAtLeastOneHourInFuture(year, month, day, hour, minute)) {
-        errors.push(`Riga ${index + 1}: Il video deve essere programmato con almeno 1 ora di anticipo`)
+        errors.push(`Riga ${index + 1}: ⚠️ Programmazione tra meno di 1 ora`)
         return
       }
 
       scheduleData.push({
         id: `schedule-${index}`,
-        caption,
+        caption: caption || '', // Didascalia opzionale
         year,
         month,
         day,
@@ -280,12 +275,29 @@ export default function VideoSchedulerDrawer({ videos, onSchedule }: VideoSchedu
     })
 
     if (errors.length > 0) {
-      alert('Errori trovati:\n\n' + errors.join('\n'))
+      // Evidenzia le righe con errori nella console e nella tabella
+      console.error('❌ Errori di validazione:', errors)
+      
+      // Colora le celle con errori in rosso
+      errors.forEach(error => {
+        const rowMatch = error.match(/Riga (\d+):/)
+        if (rowMatch && hotInstance) {
+          const rowIndex = parseInt(rowMatch[1]) - 1
+          // Evidenzia la riga con sfondo rosso chiaro
+          const cell = hotInstance.getCell(rowIndex, 0)
+          if (cell) {
+            cell.style.backgroundColor = '#fee2e2'
+          }
+        }
+      })
+      
+      // Mostra solo il primo errore in modo discreto
+      console.warn('⚠️ Correggi gli errori evidenziati in rosso')
       return
     }
 
     if (scheduleData.length === 0) {
-      alert('Nessun video da schedulare')
+      console.warn('⚠️ Nessun video da schedulare')
       return
     }
 
@@ -296,7 +308,7 @@ export default function VideoSchedulerDrawer({ videos, onSchedule }: VideoSchedu
       setData([])
     } catch (error) {
       console.error('Schedule error:', error)
-      alert('Errore durante la schedulazione. Riprova.')
+      // Non mostrare popup, solo log nella console
     } finally {
       setLoading(false)
     }
@@ -304,10 +316,7 @@ export default function VideoSchedulerDrawer({ videos, onSchedule }: VideoSchedu
 
   const handleClose = () => {
     if (loading) return
-    if (data.length > 0) {
-      const confirm = window.confirm('Chiudendo perderai tutti i dati. Sei sicuro?')
-      if (!confirm) return
-    }
+    // Chiudi senza conferma
     setIsOpen(false)
     setData([])
   }
