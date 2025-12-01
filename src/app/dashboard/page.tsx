@@ -228,12 +228,20 @@ export default function DashboardPage() {
     const videos = rows.map(row => {
       const video = videosToSchedule.find(v => v.id === row.videoId)
       
-      // Crea data nel timezone italiano (NO conversione UTC, salviamo direttamente l'orario italiano)
-      const scheduledDateIT = new Date(row.year, row.month - 1, row.day, row.hour, row.minute)
+      // Crea una stringa di data in formato ISO con orario italiano
+      // Formato: YYYY-MM-DDTHH:MM:SS+01:00 (sempre +01:00 per l'Italia)
+      const year = row.year.toString().padStart(4, '0')
+      const month = row.month.toString().padStart(2, '0')
+      const day = row.day.toString().padStart(2, '0')
+      const hour = row.hour.toString().padStart(2, '0')
+      const minute = row.minute.toString().padStart(2, '0')
+      
+      // Crea la stringa ISO con offset italiano esplicito
+      const scheduledForISO = `${year}-${month}-${day}T${hour}:${minute}:00+01:00`
       
       console.log(`📅 Scheduling video: ${video?.name}`)
       console.log(`   Orario italiano: ${row.year}-${row.month}-${row.day} ${row.hour}:${row.minute}`)
-      console.log(`   Salvato come: ${scheduledDateIT.toISOString()}`)
+      console.log(`   Stringa ISO: ${scheduledForISO}`)
       
       return {
         socialAccountId: selectedProfile.id,
@@ -242,8 +250,8 @@ export default function DashboardPage() {
         videoSize: 0,
         caption: row.caption,
         postType: row.postType || 'post',
-        // SALVA DIRETTAMENTE LA DATA IN FORMATO ITALIANO (senza conversione UTC)
-        scheduledFor: scheduledDateIT.toISOString(),
+        // Invia la data con offset italiano esplicito (+01:00)
+        scheduledFor: scheduledForISO,
       }
     })
 
