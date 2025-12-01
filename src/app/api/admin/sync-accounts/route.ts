@@ -60,7 +60,7 @@ export async function POST() {
     }
 
     // Chiama l'API di OnlySocial per ottenere gli account
-    const onlySocialUrl = `https://app.onlysocial.io/api/${workspaceUuid}/accounts`
+    const onlySocialUrl = `https://app.onlysocial.io/os/api/${workspaceUuid}/accounts`
     
     console.log('🔄 Fetching accounts from OnlySocial...')
     console.log('   URL:', onlySocialUrl)
@@ -69,8 +69,8 @@ export async function POST() {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
       },
+      redirect: 'follow',
     })
 
     if (!response.ok) {
