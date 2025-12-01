@@ -100,7 +100,7 @@ export default function VideoSchedulerDrawer({ videos, onSchedule }: VideoSchedu
       readOnly: true,
       width: 250,
       className: 'htMiddle',
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       renderer: function(instance: any, td: HTMLTableCellElement, row: number, col: number, prop: any, value: string) {
         td.innerHTML = value || ''
         if (value && value.trim() !== '') {
@@ -243,6 +243,7 @@ export default function VideoSchedulerDrawer({ videos, onSchedule }: VideoSchedu
     const scheduleData: ScheduleRow[] = []
 
     // Prima pulisci tutti i messaggi di errore
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     tableData.forEach((row: any[], index: number) => {
       hotInstance.setDataAtCell(index, 1, '', 'auto')
     })
