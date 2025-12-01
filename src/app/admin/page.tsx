@@ -35,7 +35,6 @@ export default function AdminPage() {
   const [socialAccounts, setSocialAccounts] = useState<SocialAccount[]>([])
   const [editingUserId, setEditingUserId] = useState<string | null>(null)
   const [tempSelectedAccounts, setTempSelectedAccounts] = useState<Set<string>>(new Set())
-  const [isSyncing, setIsSyncing] = useState(false)
   const [message, setMessage] = useState('')
   const [messageType, setMessageType] = useState<'success' | 'error'>('success')
 

@@ -153,10 +153,9 @@ export async function listScheduledPosts(
  * Ottieni statistiche post programmati per un utente
  */
 export async function getScheduledPostsStats(userId: string) {
-  const [total, pending, mediaUploaded, published, failed] = await Promise.all([
+  const [total, pending, published, failed] = await Promise.all([
     prisma.scheduledPost.count({ where: { userId } }),
     prisma.scheduledPost.count({ where: { userId, status: PostStatus.PENDING } }),
-    prisma.scheduledPost.count({ where: { userId, status: PostStatus.MEDIA_UPLOADED } }),
     prisma.scheduledPost.count({ where: { userId, status: PostStatus.PUBLISHED } }),
     prisma.scheduledPost.count({ where: { userId, status: PostStatus.FAILED } }),
   ])
@@ -164,7 +163,6 @@ export async function getScheduledPostsStats(userId: string) {
   return {
     total,
     pending,
-    mediaUploaded,
     published,
     failed,
   }
