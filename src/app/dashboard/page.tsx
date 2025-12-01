@@ -10,6 +10,7 @@ interface SocialProfile {
   platform: string
   accountName: string
   accountId: string
+  accountUuid?: string | null
   isActive: boolean
   assignedAt: string
   createdAt: string
@@ -260,6 +261,8 @@ export default function DashboardPage() {
       },
       body: JSON.stringify({
         socialAccountId: selectedProfile.id,
+        accountUuid: selectedProfile.accountUuid,
+        accountId: selectedProfile.accountId ? parseInt(selectedProfile.accountId, 10) : undefined,
         caption: videos[0].caption,
         postType: videos[0].postType,
         videoUrls: videos.map(v => v.videoUrl),

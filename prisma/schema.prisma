@@ -28,7 +28,8 @@ model SocialAccount {
   id                String             @id @default(cuid())
   platform          String
   accountName       String
-  accountId         String             @unique
+  accountId         String             @unique  // ID OnlySocial (può essere numerico o stringa)
+  accountUuid       String?            // UUID OnlySocial API
   isActive          Boolean            @default(true)
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
@@ -57,6 +58,10 @@ model ScheduledPost {
   id                 String     @id @default(cuid())
   userId             String
   socialAccountId    String
+  
+  // OnlySocial Account Info
+  accountUuid        String?    // UUID dell'account su OnlySocial API
+  accountId          Int?       // ID numerico dell'account su OnlySocial API
   
   // Video (supporto per array multipli)
   videoUrls          String[]   @default([])  // Array di URL video su DigitalOcean Spaces

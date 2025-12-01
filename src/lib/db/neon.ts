@@ -10,6 +10,8 @@ import { PostStatus, Prisma } from '@prisma/client'
 export interface SaveScheduledPostData {
   userId: string
   socialAccountId: string
+  accountUuid?: string
+  accountId?: number
   caption: string
   postType?: string
   videoUrls: string[]
@@ -27,6 +29,8 @@ export async function saveScheduledPost(data: SaveScheduledPostData) {
     data: {
       userId: data.userId,
       socialAccountId: data.socialAccountId,
+      accountUuid: data.accountUuid,
+      accountId: data.accountId,
       caption: data.caption,
       postType: data.postType || 'reel',
       videoUrls: data.videoUrls,

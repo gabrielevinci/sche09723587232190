@@ -10,6 +10,8 @@ import { saveScheduledPost } from '@/lib/db/neon'
 
 interface SchedulePostRequest {
   socialAccountId: string
+  accountUuid?: string
+  accountId?: number
   caption: string
   postType?: string
   videoUrls: string[]
@@ -34,6 +36,8 @@ export async function POST(request: NextRequest) {
 
     const {
       socialAccountId,
+      accountUuid,
+      accountId,
       caption,
       postType,
       videoUrls,
@@ -92,6 +96,8 @@ export async function POST(request: NextRequest) {
     const savedPost = await saveScheduledPost({
       userId: session.user.id,
       socialAccountId,
+      accountUuid,
+      accountId,
       caption: caption || 'Scheduled post',
       postType: postType || 'reel',
       videoUrls,
