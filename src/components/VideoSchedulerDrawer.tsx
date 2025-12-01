@@ -198,6 +198,14 @@ export default function VideoSchedulerDrawer({ videos, onSchedule }: VideoSchedu
            date.getDate() === day
   }
 
+  const isAtLeastOneHourInFuture = (year: number, month: number, day: number, hour: number, minute: number): boolean => {
+    const scheduledDate = new Date(year, month - 1, day, hour, minute)
+    const now = new Date()
+    const oneHourFromNow = new Date(now.getTime() + (60 * 60 * 1000)) // +1 ora da ora
+    
+    return scheduledDate > oneHourFromNow
+  }
+
   const handleScheduleAll = async () => {
     if (!hotTableRef.current) return
 
@@ -251,9 +259,9 @@ export default function VideoSchedulerDrawer({ videos, onSchedule }: VideoSchedu
         return
       }
 
-      const scheduledDate = new Date(year, month - 1, day, hour, minute)
-      if (scheduledDate <= new Date()) {
-        errors.push(`Riga ${index + 1}: La data deve essere nel futuro`)
+      // Verifica che il video sia programmato con almeno 1 ora di anticipo
+      if (!isAtLeastOneHourInFuture(year, month, day, hour, minute)) {
+        errors.push(`Riga ${index + 1}: Il video deve essere programmato con almeno 1 ora di anticipo`)
         return
       }
 

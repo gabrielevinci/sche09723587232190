@@ -102,9 +102,13 @@ export async function POST(request: NextRequest) {
     console.log(`   Parsed: ${scheduleDate.toISOString()}`)
     console.log(`   Adjusted (+1h): ${scheduleDateAdjusted.toISOString()}`)
 
-    if (scheduleDateAdjusted <= new Date()) {
+    // Verifica che la data sia almeno 1 ora nel futuro
+    const now = new Date()
+    const oneHourFromNow = new Date(now.getTime() + (60 * 60 * 1000)) // +1 ora da ora
+    
+    if (scheduleDate <= oneHourFromNow) {
       return NextResponse.json(
-        { error: 'Scheduled date must be in the future' },
+        { error: 'Il video deve essere programmato con almeno 1 ora di anticipo' },
         { status: 400 }
       )
     }
