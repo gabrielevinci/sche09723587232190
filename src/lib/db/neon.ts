@@ -33,6 +33,10 @@ export interface SaveScheduledPostData {
  * Salva un post programmato nel database
  */
 export async function saveScheduledPost(data: SaveScheduledPostData) {
+  // Crea timestamp italiani (aggiungiamo +1 ora per compensare conversione UTC di PostgreSQL)
+  const now = new Date()
+  const italianTime = new Date(now.getTime() + (60 * 60 * 1000)) // +1 ora
+
   const result = await prisma.scheduledPost.create({
     data: {
       userId: data.userId,
@@ -47,6 +51,8 @@ export async function saveScheduledPost(data: SaveScheduledPostData) {
       scheduledFor: data.scheduledFor,
       timezone: data.timezone || 'Europe/Rome',
       status: PostStatus.PENDING,
+      createdAt: italianTime,  // Imposta manualmente con orario italiano
+      updatedAt: italianTime,  // Imposta manualmente con orario italiano
     },
     select: {
       id: true,
@@ -61,12 +67,15 @@ export async function saveScheduledPost(data: SaveScheduledPostData) {
  * Marca post come pubblicato con successo
  */
 export async function markPostAsPublished(postId: string) {
+  const now = new Date()
+  const italianTime = new Date(now.getTime() + (60 * 60 * 1000)) // +1 ora
+  
   await prisma.scheduledPost.update({
     where: { id: postId },
     data: {
       status: PostStatus.PUBLISHED,
-      publishedAt: new Date(),
-      updatedAt: new Date(),
+      publishedAt: italianTime,
+      updatedAt: italianTime,
     },
   })
 }
@@ -75,13 +84,16 @@ export async function markPostAsPublished(postId: string) {
  * Marca post come fallito con messaggio di errore
  */
 export async function markPostAsFailed(postId: string, errorMessage: string) {
+  const now = new Date()
+  const italianTime = new Date(now.getTime() + (60 * 60 * 1000)) // +1 ora
+  
   await prisma.scheduledPost.update({
     where: { id: postId },
     data: {
       status: PostStatus.FAILED,
       errorMessage: errorMessage,
       retryCount: { increment: 1 },
-      updatedAt: new Date(),
+      updatedAt: italianTime,
     },
   })
 }
@@ -107,11 +119,14 @@ export async function cancelScheduledPost(postId: string, userId: string) {
     throw new Error('Cannot cancel published post')
   }
 
+  const now = new Date()
+  const italianTime = new Date(now.getTime() + (60 * 60 * 1000)) // +1 ora
+
   await prisma.scheduledPost.update({
     where: { id: postId },
     data: {
       status: PostStatus.CANCELLED,
-      updatedAt: new Date(),
+      updatedAt: italianTime,
     },
   })
 }

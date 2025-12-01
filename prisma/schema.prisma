@@ -85,9 +85,9 @@ model ScheduledPost {
   retryCount         Int        @default(0)
   maxRetries         Int        @default(3)
   
-  // Audit
-  createdAt          DateTime   @default(now())
-  updatedAt          DateTime   @updatedAt
+  // Audit (gestiti manualmente per orario italiano)
+  createdAt          DateTime
+  updatedAt          DateTime
   
   // Relations
   user               User       @relation(fields: [userId], references: [id], onDelete: Cascade)
