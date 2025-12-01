@@ -9,7 +9,7 @@ Un sistema completo per programmare e pubblicare video sui social media tramite 
 **Problema**: OnlySocial offre solo 20GB di spazio per i video.
 
 **Soluzione**: Sistema intelligente che carica i video su OnlySocial solo quando necessario:
-- 🚀 **Video immediati** (< 1 ora): Caricati subito su DigitalOcean + OnlySocial
+- 🚀 **Video immediati** (<  1 ora): Caricati subito su DigitalOcean + OnlySocial
 - ⏰ **Video futuri** (> 1 ora): Caricati solo su DigitalOcean, poi processati automaticamente dal cron job 1 ora prima della pubblicazione
 
 📚 **Guida completa**: [docs/CRON_SETUP_GUIDE.md](./docs/CRON_SETUP_GUIDE.md)
