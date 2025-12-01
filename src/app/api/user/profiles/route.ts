@@ -24,6 +24,7 @@ export async function GET() {
                 platform: true,
                 accountName: true,
                 accountId: true,
+                accountUuid: true,
                 isActive: true,
                 createdAt: true
               }
@@ -43,6 +44,7 @@ export async function GET() {
       platform: assoc.socialAccount.platform,
       accountName: assoc.socialAccount.accountName,
       accountId: assoc.socialAccount.accountId,
+      accountUuid: assoc.socialAccount.accountUuid,
       isActive: assoc.socialAccount.isActive,
       assignedAt: assoc.assignedAt,
       createdAt: assoc.socialAccount.createdAt
