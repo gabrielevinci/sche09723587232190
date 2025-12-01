@@ -80,34 +80,6 @@ export default function AdminPage() {
     }
   }
 
-  const syncOnlySocialAccounts = async () => {
-    setIsSyncing(true)
-    setMessage('')
-
-    try {
-      const res = await fetch('/api/admin/sync-accounts', {
-        method: 'POST',
-      })
-
-      const data = await res.json()
-
-      if (res.ok) {
-        setMessage(`✅ ${data.message}`)
-        setMessageType('success')
-        await loadSocialAccounts()
-      } else {
-        setMessage(`❌ ${data.error}`)
-        setMessageType('error')
-      }
-    } catch (error) {
-      console.error('Errore sincronizzazione:', error)
-      setMessage('❌ Errore nella sincronizzazione')
-      setMessageType('error')
-    } finally {
-      setIsSyncing(false)
-    }
-  }
-
   const startEditing = (user: User) => {
     setEditingUserId(user.id)
     const currentAccountIds = new Set(
@@ -198,7 +170,7 @@ export default function AdminPage() {
               Pannello Amministratore
             </h1>
             <p className="mt-2 text-gray-600">
-              Gestisci gli utenti e assegna gli account social OnlySocial
+              Gestisci gli utenti e assegna gli account social
             </p>
           </div>
           <button
@@ -210,17 +182,8 @@ export default function AdminPage() {
           </button>
         </div>
 
-        {/* Sync Button */}
+        {/* Stats */}
         <div className="mb-6 flex gap-4">
-          <button
-            onClick={syncOnlySocialAccounts}
-            disabled={isSyncing}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-          >
-            <span>{isSyncing ? '⏳' : '🔄'}</span>
-            {isSyncing ? 'Sincronizzazione in corso...' : 'Sincronizza Account OnlySocial'}
-          </button>
-          
           <div className="flex items-center gap-2 text-sm text-gray-600">
             <span className="px-3 py-1 bg-white rounded-lg border border-gray-200">
               {users.length} Utenti
@@ -403,16 +366,9 @@ export default function AdminPage() {
           <div className="p-6">
             {socialAccounts.length === 0 ? (
               <div className="text-center py-8">
-                <p className="text-gray-500 mb-4">
-                  Nessun account sincronizzato. Clicca su &quot;Sincronizza Account OnlySocial&quot; per importare gli account.
+                <p className="text-gray-500">
+                  Nessun account social registrato nel sistema.
                 </p>
-                <button
-                  onClick={syncOnlySocialAccounts}
-                  disabled={isSyncing}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400"
-                >
-                  {isSyncing ? 'Sincronizzazione...' : '🔄 Sincronizza Ora'}
-                </button>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

@@ -10,7 +10,6 @@ import { PostStatus, Prisma } from '@prisma/client'
 export interface SaveScheduledPostData {
   userId: string
   socialAccountId: string
-  accountUuid: string
   caption: string
   postType?: string
   videoUrls: string[]
@@ -28,7 +27,6 @@ export async function saveScheduledPost(data: SaveScheduledPostData) {
     data: {
       userId: data.userId,
       socialAccountId: data.socialAccountId,
-      accountUuid: data.accountUuid,
       caption: data.caption,
       postType: data.postType || 'reel',
       videoUrls: data.videoUrls,
@@ -45,87 +43,6 @@ export async function saveScheduledPost(data: SaveScheduledPostData) {
   })
 
   return result
-}
-
-/**
- * Trova post da pre-caricare (da pubblicare nelle prossime X ore)
- * Filtra solo post in stato PENDING che non sono stati pre-caricati
- * 
- * IMPORTANTE: Include anche post "in ritardo" (scheduledFor nel passato)
- * per recuperare eventuali post saltati dal cron job precedente
- */
-export async function getPostsDueForPreUpload(hoursAhead: number = 2) {
-  const futureDate = new Date()
-  futureDate.setHours(futureDate.getHours() + hoursAhead)
-
-  const posts = await prisma.scheduledPost.findMany({
-    where: {
-      status: PostStatus.PENDING,
-      preUploaded: false,
-      scheduledFor: {
-        lte: futureDate,
-        // RIMOSSO gt: new Date() per includere post nel passato che devono ancora essere caricati
-      },
-    },
-    orderBy: {
-      scheduledFor: 'asc',
-    },
-  })
-
-  return posts
-}
-
-/**
- * Trova post da pubblicare ORA (con finestra di tolleranza)
- * Filtra post in stato MEDIA_UPLOADED nell'intervallo temporale
- * 
- * IMPORTANTE: Usa una finestra estesa nel passato per recuperare post "in ritardo"
- * che non sono stati pubblicati al momento giusto (es. cron job saltato)
- */
-export async function getPostsDueForPublishing(minutesWindow: number = 5) {
-  const now = new Date()
-  // Finestra estesa nel passato (2 ore) per recuperare post in ritardo
-  const past = new Date(now.getTime() - 120 * 60000)
-  // Finestra normale nel futuro (minutesWindow)
-  const future = new Date(now.getTime() + minutesWindow * 60000)
-
-  const posts = await prisma.scheduledPost.findMany({
-    where: {
-      status: PostStatus.MEDIA_UPLOADED,
-      scheduledFor: {
-        gte: past,
-        lte: future,
-      },
-    },
-    orderBy: {
-      scheduledFor: 'asc',
-    },
-  })
-
-  return posts
-}
-
-/**
- * Aggiorna post dopo il pre-upload dei video
- */
-export async function updatePostMediaIds(
-  postId: string,
-  mediaIds: string[],
-  postUuid: string | null = null,
-  accountId: number | null = null
-) {
-  await prisma.scheduledPost.update({
-    where: { id: postId },
-    data: {
-      onlySocialMediaIds: mediaIds,
-      onlySocialPostUuid: postUuid,
-      accountId: accountId,
-      preUploaded: true,
-      preUploadAt: new Date(),
-      status: PostStatus.MEDIA_UPLOADED,
-      updatedAt: new Date(),
-    },
-  })
 }
 
 /**

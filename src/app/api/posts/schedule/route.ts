@@ -10,7 +10,6 @@ import { saveScheduledPost } from '@/lib/db/neon'
 
 interface SchedulePostRequest {
   socialAccountId: string
-  accountUuid: string
   caption: string
   postType?: string
   videoUrls: string[]
@@ -35,7 +34,6 @@ export async function POST(request: NextRequest) {
 
     const {
       socialAccountId,
-      accountUuid,
       caption,
       postType,
       videoUrls,
@@ -46,9 +44,9 @@ export async function POST(request: NextRequest) {
     } = body
 
     // Validazione
-    if (!socialAccountId || !accountUuid || !videoUrls || !scheduledFor) {
+    if (!socialAccountId || !videoUrls || !scheduledFor) {
       return NextResponse.json(
-        { error: 'Missing required fields: socialAccountId, accountUuid, videoUrls, scheduledFor' },
+        { error: 'Missing required fields: socialAccountId, videoUrls, scheduledFor' },
         { status: 400 }
       )
     }
@@ -94,7 +92,6 @@ export async function POST(request: NextRequest) {
     const savedPost = await saveScheduledPost({
       userId: session.user.id,
       socialAccountId,
-      accountUuid,
       caption: caption || 'Scheduled post',
       postType: postType || 'reel',
       videoUrls,

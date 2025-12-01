@@ -226,7 +226,7 @@ export default function DashboardPage() {
     // Ottieni il timezone dell'utente (TODO: prendere da user settings, per ora usa Europe/Rome)
     const userTimezone = 'Europe/Rome'
 
-    // Prepara i dati per l'API Smart Scheduling
+    // Prepara i dati per l'API di salvataggio
     const videos = rows.map(row => {
       const video = videosToSchedule.find(v => v.id === row.videoId)
       
@@ -252,39 +252,34 @@ export default function DashboardPage() {
       }
     })
 
-    // Chiama l'API di Smart Scheduling
-    const response = await fetch('/api/schedule/smart-schedule', {
+    // Salva i video nel database
+    const response = await fetch('/api/posts/schedule', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(videos),
+      body: JSON.stringify({
+        socialAccountId: selectedProfile.id,
+        caption: videos[0].caption,
+        postType: videos[0].postType,
+        videoUrls: videos.map(v => v.videoUrl),
+        videoFilenames: videos.map(v => v.videoFilename),
+        videoSizes: videos.map(v => v.videoSize),
+        scheduledFor: videos[0].scheduledFor,
+        timezone: userTimezone,
+      }),
     })
 
     if (!response.ok) {
       const error = await response.json()
-      throw new Error(error.error || 'Errore durante lo scheduling')
+      throw new Error(error.error || 'Errore durante il salvataggio')
     }
 
     const result = await response.json()
-    console.log('📊 Smart Scheduling completato:', result)
+    console.log('📊 Video salvati nel database:', result)
     
     // Mostra un messaggio informativo all'utente
-    if (result.summary) {
-      const { uploadedNow, savedForLater, errors } = result.summary
-      let message = `✅ Scheduling completato!\n\n`
-      if (uploadedNow > 0) {
-        message += `📤 ${uploadedNow} video caricati immediatamente su OnlySocial\n`
-      }
-      if (savedForLater > 0) {
-        message += `⏰ ${savedForLater} video salvati per caricamento futuro (1 ora prima)\n`
-      }
-      if (errors > 0) {
-        message += `❌ ${errors} errori riscontrati`
-        throw new Error(message)
-      }
-      alert(message)
-    }
+    alert(`✅ Video salvati con successo nel database!\n\nProgrammati per: ${new Date(videos[0].scheduledFor).toLocaleString('it-IT')}`)
 
     // Chiudi il drawer
     setVideosToSchedule([])
