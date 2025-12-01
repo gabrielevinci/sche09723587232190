@@ -63,6 +63,7 @@ export default function VideoSchedulerDrawer({ videos, onSchedule }: VideoSchedu
       
       const newData = videos.map(video => [
         '', // caption
+        '', // error message
         currentYear, // year
         currentMonth, // month
         currentDay, // day
@@ -94,50 +95,70 @@ export default function VideoSchedulerDrawer({ videos, onSchedule }: VideoSchedu
     },
     {
       data: 1,
+      title: 'Errore',
+      type: 'text',
+      readOnly: true,
+      width: 250,
+      className: 'htMiddle',
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars
+      renderer: function(instance: any, td: HTMLTableCellElement, row: number, col: number, prop: any, value: string) {
+        td.innerHTML = value || ''
+        if (value && value.trim() !== '') {
+          td.style.color = '#dc2626' // red-600
+          td.style.fontWeight = '600'
+        } else {
+          td.style.color = ''
+          td.style.fontWeight = ''
+        }
+        return td
+      }
+    },
+    {
+      data: 2,
       title: 'Anno',
       type: 'numeric',
       width: 80
     },
     {
-      data: 2,
+      data: 3,
       title: 'Mese',
       type: 'numeric',
       width: 70
     },
     {
-      data: 3,
+      data: 4,
       title: 'Giorno',
       type: 'numeric',
       width: 80
     },
     {
-      data: 4,
+      data: 5,
       title: 'Ora',
       type: 'numeric',
       width: 70
     },
     {
-      data: 5,
+      data: 6,
       title: 'Minuti',
       type: 'numeric',
       width: 80
     },
     {
-      data: 6,
+      data: 7,
       title: 'Tipologia',
       type: 'dropdown',
       source: ['reel', 'story', 'post'],
       width: 110
     },
     {
-      data: 7,
+      data: 8,
       title: 'File',
       type: 'text',
       readOnly: true,
       width: 200
     },
     {
-      data: 8,
+      data: 9,
       title: 'Anteprima',
       type: 'text',
       readOnly: true,
@@ -155,10 +176,10 @@ export default function VideoSchedulerDrawer({ videos, onSchedule }: VideoSchedu
           e.preventDefault()
           e.stopPropagation()
           const rowData = data[row]
-          console.log('🎬 Click preview button:', { row, rowData, videoUrl: rowData?.[9] })
-          if (rowData && rowData[9]) {
-            console.log('✅ Setting video URL:', rowData[9])
-            setSelectedVideoUrl(rowData[9] as string)
+          console.log('🎬 Click preview button:', { row, rowData, videoUrl: rowData?.[10] })
+          if (rowData && rowData[10]) {
+            console.log('✅ Setting video URL:', rowData[10])
+            setSelectedVideoUrl(rowData[10] as string)
           } else {
             console.error('❌ No video URL found in row', row)
           }
@@ -169,7 +190,7 @@ export default function VideoSchedulerDrawer({ videos, onSchedule }: VideoSchedu
       }
     },
     {
-      data: 9,
+      data: 10,
       title: 'URL',
       type: 'text',
       readOnly: true,
@@ -177,7 +198,7 @@ export default function VideoSchedulerDrawer({ videos, onSchedule }: VideoSchedu
       className: 'htHidden'
     },
     {
-      data: 10,
+      data: 11,
       title: 'ID',
       type: 'text',
       readOnly: true,
@@ -221,42 +242,55 @@ export default function VideoSchedulerDrawer({ videos, onSchedule }: VideoSchedu
     const errors: string[] = []
     const scheduleData: ScheduleRow[] = []
 
+    // Prima pulisci tutti i messaggi di errore
+    tableData.forEach((row: any[], index: number) => {
+      hotInstance.setDataAtCell(index, 1, '', 'auto')
+    })
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     tableData.forEach((row: any[], index: number) => {
       const caption = String(row[0] || '')
-      const year = Number(row[1])
-      const month = Number(row[2])
-      const day = Number(row[3])
-      const hour = Number(row[4])
-      const minute = Number(row[5])
-      const postType = row[6] as string
-      const videoName = row[7] as string
-      // row[8] is the preview button text (ignored)
-      // row[9] is the videoUrl (ignored)
-      const videoId = row[10] as string
+      const year = Number(row[2])
+      const month = Number(row[3])
+      const day = Number(row[4])
+      const hour = Number(row[5])
+      const minute = Number(row[6])
+      const postType = row[7] as string
+      const videoName = row[8] as string
+      // row[9] is the preview button text (ignored)
+      // row[10] is the videoUrl (ignored)
+      const videoId = row[11] as string
 
       console.log(`Row ${index}:`, { caption, year, month, day, hour, minute, postType, videoName, videoId, rowLength: row.length })
 
       // Validate required fields
       if (!videoId) {
-        errors.push(`Riga ${index + 1}: Video mancante`)
+        const errorMsg = 'Video mancante'
+        errors.push(`Riga ${index + 1}: ${errorMsg}`)
+        hotInstance.setDataAtCell(index, 1, errorMsg, 'auto')
         return
       }
 
       if (!postType || !['reel', 'story', 'post'].includes(postType)) {
-        errors.push(`Riga ${index + 1}: Tipologia non valida (scegli: reel, story, post)`)
+        const errorMsg = 'Tipologia non valida (scegli: reel, story, post)'
+        errors.push(`Riga ${index + 1}: ${errorMsg}`)
+        hotInstance.setDataAtCell(index, 1, errorMsg, 'auto')
         return
       }
 
       // Validate date
       if (!isValidDate(year, month, day, hour, minute)) {
-        errors.push(`Riga ${index + 1}: Data non valida`)
+        const errorMsg = 'Data non valida'
+        errors.push(`Riga ${index + 1}: ${errorMsg}`)
+        hotInstance.setDataAtCell(index, 1, errorMsg, 'auto')
         return
       }
 
       // Verifica che il video sia programmato con almeno 1 ora di anticipo
       if (!isAtLeastOneHourInFuture(year, month, day, hour, minute)) {
-        errors.push(`Riga ${index + 1}: ⚠️ Programmazione tra meno di 1 ora`)
+        const errorMsg = '⚠️ Programmazione tra meno di 1 ora'
+        errors.push(`Riga ${index + 1}: ${errorMsg}`)
+        hotInstance.setDataAtCell(index, 1, errorMsg, 'auto')
         return
       }
 
@@ -275,24 +309,8 @@ export default function VideoSchedulerDrawer({ videos, onSchedule }: VideoSchedu
     })
 
     if (errors.length > 0) {
-      // Evidenzia le righe con errori nella console e nella tabella
       console.error('❌ Errori di validazione:', errors)
-      
-      // Colora le celle con errori in rosso
-      errors.forEach(error => {
-        const rowMatch = error.match(/Riga (\d+):/)
-        if (rowMatch && hotInstance) {
-          const rowIndex = parseInt(rowMatch[1]) - 1
-          // Evidenzia la riga con sfondo rosso chiaro
-          const cell = hotInstance.getCell(rowIndex, 0)
-          if (cell) {
-            cell.style.backgroundColor = '#fee2e2'
-          }
-        }
-      })
-      
-      // Mostra solo il primo errore in modo discreto
-      console.warn('⚠️ Correggi gli errori evidenziati in rosso')
+      console.warn('⚠️ Correggi gli errori visualizzati nella colonna "Errore"')
       return
     }
 
