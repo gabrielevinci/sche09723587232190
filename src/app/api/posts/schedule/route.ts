@@ -1,6 +1,11 @@
 /**
  * API Route: POST /api/posts/schedule
  * Salva un post programmato nel database
+ * 
+ * IMPORTANTE: Tutti gli orari sono in formato italiano (Europe/Rome, UTC+1)
+ * - Il frontend invia date in formato italiano
+ * - Il backend salva le date in formato italiano
+ * - OnlySocial API usa lo stesso fuso orario italiano
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -10,15 +15,15 @@ import { saveScheduledPost } from '@/lib/db/neon'
 
 interface SchedulePostRequest {
   socialAccountId: string
-  accountUuid?: string
-  accountId?: number
+  accountUuid?: string   // UUID OnlySocial API
+  accountId?: number     // ID numerico OnlySocial API
   caption: string
   postType?: string
   videoUrls: string[]
   videoFilenames: string[]
   videoSizes: number[]
-  scheduledFor: string // ISO 8601 datetime string
-  timezone?: string
+  scheduledFor: string   // ISO 8601 datetime string in formato italiano
+  timezone?: string      // Default: 'Europe/Rome'
 }
 
 export async function POST(request: NextRequest) {

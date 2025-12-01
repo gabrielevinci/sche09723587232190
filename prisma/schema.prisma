@@ -72,13 +72,13 @@ model ScheduledPost {
   caption            String
   postType           String     @default("reel")  // 'post', 'reel', 'story'
   
-  // Scheduling
-  scheduledFor       DateTime   // Data/ora schedulazione (UTC)
-  timezone           String     @default("Europe/Rome")  // Timezone utente (IANA)
+  // Scheduling (TUTTI GLI ORARI SONO IN FORMATO ITALIANO - Europe/Rome, UTC+1)
+  scheduledFor       DateTime   // Data/ora schedulazione in formato italiano
+  timezone           String     @default("Europe/Rome")  // Timezone fisso italiano (IANA)
   
   // Stati del processo
   status             PostStatus @default(PENDING)
-  publishedAt        DateTime?  // Quando è stato effettivamente pubblicato
+  publishedAt        DateTime?  // Data/ora pubblicazione in formato italiano
   
   // Error handling
   errorMessage       String?

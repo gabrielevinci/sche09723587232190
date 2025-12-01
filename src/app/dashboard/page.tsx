@@ -221,25 +221,19 @@ export default function DashboardPage() {
       throw new Error('Nessun profilo selezionato')
     }
 
-    // Importa fromZonedTime per conversione timezone
-    const { fromZonedTime } = await import('date-fns-tz')
-    
-    // Ottieni il timezone dell'utente (TODO: prendere da user settings, per ora usa Europe/Rome)
+    // Timezone italiano fisso (Europe/Rome = UTC+1)
     const userTimezone = 'Europe/Rome'
 
     // Prepara i dati per l'API di salvataggio
     const videos = rows.map(row => {
       const video = videosToSchedule.find(v => v.id === row.videoId)
       
-      // Crea data nel timezone dell'utente
-      const scheduledDateInUserTZ = new Date(row.year, row.month - 1, row.day, row.hour, row.minute)
-      
-      // CONVERTI IN UTC SUBITO! Il DB salverà questo valore UTC
-      const scheduledDateUTC = fromZonedTime(scheduledDateInUserTZ, userTimezone)
+      // Crea data nel timezone italiano (NO conversione UTC, salviamo direttamente l'orario italiano)
+      const scheduledDateIT = new Date(row.year, row.month - 1, row.day, row.hour, row.minute)
       
       console.log(`📅 Scheduling video: ${video?.name}`)
-      console.log(`   User input (${userTimezone}): ${row.year}-${row.month}-${row.day} ${row.hour}:${row.minute}`)
-      console.log(`   Converted to UTC: ${scheduledDateUTC.toISOString()}`)
+      console.log(`   Orario italiano: ${row.year}-${row.month}-${row.day} ${row.hour}:${row.minute}`)
+      console.log(`   Salvato come: ${scheduledDateIT.toISOString()}`)
       
       return {
         socialAccountId: selectedProfile.id,
@@ -248,8 +242,8 @@ export default function DashboardPage() {
         videoSize: 0,
         caption: row.caption,
         postType: row.postType || 'post',
-        // INVIA DIRETTAMENTE LA DATA UTC COME ISO STRING
-        scheduledFor: scheduledDateUTC.toISOString(),
+        // SALVA DIRETTAMENTE LA DATA IN FORMATO ITALIANO (senza conversione UTC)
+        scheduledFor: scheduledDateIT.toISOString(),
       }
     })
 

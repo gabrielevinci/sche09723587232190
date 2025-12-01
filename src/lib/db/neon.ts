@@ -1,7 +1,15 @@
 /**
  * Neon Database Utilities
  * Funzioni per gestire scheduled posts con Prisma
- * Updated: 2025-10-30
+ * 
+ * IMPORTANTE: Tutti gli orari sono in formato italiano (Europe/Rome, UTC+1)
+ * - scheduledFor: Data/ora in formato italiano
+ * - publishedAt: Data/ora in formato italiano
+ * - createdAt/updatedAt: Data/ora in formato italiano
+ * 
+ * OnlySocial API utilizza lo stesso fuso orario italiano impostato nella dashboard
+ * 
+ * Updated: 2025-12-01
  */
 
 import { prisma } from '@/lib/prisma'
@@ -10,15 +18,15 @@ import { PostStatus, Prisma } from '@prisma/client'
 export interface SaveScheduledPostData {
   userId: string
   socialAccountId: string
-  accountUuid?: string
-  accountId?: number
+  accountUuid?: string  // UUID OnlySocial API
+  accountId?: number     // ID numerico OnlySocial API
   caption: string
   postType?: string
   videoUrls: string[]
   videoFilenames: string[]
   videoSizes: number[]
-  scheduledFor: Date
-  timezone?: string
+  scheduledFor: Date     // Data/ora in formato italiano (Europe/Rome)
+  timezone?: string      // Default: 'Europe/Rome'
 }
 
 /**

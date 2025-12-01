@@ -1,5 +1,14 @@
 'use client'
 
+/**
+ * VideoSchedulerDrawer Component
+ * 
+ * IMPORTANTE: Tutti gli orari sono gestiti in formato italiano (Europe/Rome, UTC+1)
+ * - year, month, day, hour, minute: sempre in orario italiano
+ * - Nessuna conversione UTC necessaria
+ * - OnlySocial API usa lo stesso fuso orario
+ */
+
 import { useEffect, useState, useRef } from 'react'
 import { HotTable } from '@handsontable/react'
 import { registerAllModules } from 'handsontable/registry'
@@ -19,11 +28,11 @@ export interface VideoFile {
 export interface ScheduleRow {
   id: string
   caption: string
-  year: number
-  month: number
-  day: number
-  hour: number
-  minute: number
+  year: number    // Anno in orario italiano
+  month: number   // Mese in orario italiano (1-12)
+  day: number     // Giorno in orario italiano
+  hour: number    // Ora in orario italiano (0-23)
+  minute: number  // Minuto in orario italiano (0-59)
   postType: 'reel' | 'story' | 'post'
   videoId: string
   videoName: string
