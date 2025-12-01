@@ -35,6 +35,7 @@ export default function AdminPage() {
   const [socialAccounts, setSocialAccounts] = useState<SocialAccount[]>([])
   const [editingUserId, setEditingUserId] = useState<string | null>(null)
   const [tempSelectedAccounts, setTempSelectedAccounts] = useState<Set<string>>(new Set())
+  const [isSyncing, setIsSyncing] = useState(false)
   const [message, setMessage] = useState('')
   const [messageType, setMessageType] = useState<'success' | 'error'>('success')
 
@@ -76,6 +77,34 @@ export default function AdminPage() {
       console.error('Errore caricamento account:', error)
       setMessage('❌ Errore nel caricamento degli account')
       setMessageType('error')
+    }
+  }
+
+  const syncOnlySocialAccounts = async () => {
+    setIsSyncing(true)
+    setMessage('')
+
+    try {
+      const res = await fetch('/api/admin/sync-accounts', {
+        method: 'POST',
+      })
+
+      const data = await res.json()
+
+      if (res.ok) {
+        setMessage(`✅ ${data.message}`)
+        setMessageType('success')
+        await loadSocialAccounts()
+      } else {
+        setMessage(`❌ ${data.error}`)
+        setMessageType('error')
+      }
+    } catch (error) {
+      console.error('Errore sincronizzazione:', error)
+      setMessage('❌ Errore nella sincronizzazione')
+      setMessageType('error')
+    } finally {
+      setIsSyncing(false)
     }
   }
 
@@ -181,8 +210,17 @@ export default function AdminPage() {
           </button>
         </div>
 
-        {/* Stats */}
+        {/* Sync Button */}
         <div className="mb-6 flex gap-4">
+          <button
+            onClick={syncOnlySocialAccounts}
+            disabled={isSyncing}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+          >
+            <span>{isSyncing ? '⏳' : '🔄'}</span>
+            {isSyncing ? 'Sincronizzazione in corso...' : 'Sincronizza Account OnlySocial'}
+          </button>
+          
           <div className="flex items-center gap-2 text-sm text-gray-600">
             <span className="px-3 py-1 bg-white rounded-lg border border-gray-200">
               {users.length} Utenti
