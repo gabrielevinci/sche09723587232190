@@ -323,7 +323,7 @@ export async function checkSingleAccountStatus(
       return null;
     }
 
-    const result = await checkAndUpdateAccountsStatus(account.userId, true);
+    await checkAndUpdateAccountsStatus(account.userId, true);
     
     // Recupera lo stato aggiornato
     const updatedAccount = await prisma.socialAccount.findUnique({

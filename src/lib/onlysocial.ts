@@ -3,11 +3,11 @@
  * Gestisce upload video, creazione e schedulazione post
  */
 
-const ONLYSOCIAL_API_TOKEN = process.env.ONLYSOCIAL_API_TOKEN || process.env.ONLYSOCIAL_API_TOKEN
+const ONLYSOCIAL_API_TOKEN = process.env.ONLYSOCIAL_API_TOKEN || process.env.ONLYSOCIAL_API_KEY
 const ONLYSOCIAL_WORKSPACE_UUID = process.env.ONLYSOCIAL_WORKSPACE_UUID
 
 if (!ONLYSOCIAL_API_TOKEN || !ONLYSOCIAL_WORKSPACE_UUID) {
-  throw new Error('OnlySocial API credentials not configured')
+  console.warn('⚠️ OnlySocial API credentials not configured - some features will be disabled')
 }
 
 const BASE_URL = `https://app.onlysocial.io/os/api/${ONLYSOCIAL_WORKSPACE_UUID}`
