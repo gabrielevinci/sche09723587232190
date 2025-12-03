@@ -44,7 +44,7 @@ async function shouldCheckAccountStatus(accountId: string): Promise<boolean> {
  */
 async function fetchOnlySocialAccountsStatus(): Promise<OnlySocialAccount[]> {
   const workspaceUuid = process.env.ONLYSOCIAL_WORKSPACE_UUID;
-  const apiToken = process.env.ONLYSOCIAL_API_TOKEN;
+  const apiToken = process.env.ONLYSOCIAL_API_TOKEN || process.env.ONLYSOCIAL_API_KEY;
 
   if (!workspaceUuid || !apiToken) {
     console.error('❌ [OnlySocial Sync] Missing credentials in environment');
