@@ -80,6 +80,11 @@ model ScheduledPost {
   status             PostStatus @default(PENDING)
   publishedAt        DateTime?  // Data/ora pubblicazione in formato italiano
   
+  // OnlySocial Integration Data (salvati dopo upload e schedulazione)
+  onlySocialPostUuid String?    // UUID del post creato su OnlySocial
+  onlySocialMediaIds Int[]      @default([])  // Array di ID media caricati su OnlySocial
+  onlySocialMediaUrl String?    // URL primo video caricato su OnlySocial storage
+  
   // Error handling
   errorMessage       String?
   retryCount         Int        @default(0)
