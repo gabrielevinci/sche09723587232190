@@ -26,17 +26,28 @@ const API_TIMEOUT = 10000; // 10 secondi timeout
 
 /**
  * Verifica se un account necessita di controllo stato
+ * Controlla sempre se forceCheck=true oppure se la cache è scaduta
  */
-async function shouldCheckAccountStatus(accountId: string): Promise<boolean> {
+async function shouldCheckAccountStatus(accountId: string, forceCheck: boolean = false): Promise<boolean> {
+  if (forceCheck) return true;
+
   const account = await prisma.socialAccount.findUnique({
     where: { id: accountId },
-    select: { updatedAt: true }
+    select: { updatedAt: true, isActive: true }
   });
 
   if (!account) return false;
 
   const timeSinceLastCheck = Date.now() - account.updatedAt.getTime();
-  return timeSinceLastCheck > CACHE_DURATION;
+  const cacheExpired = timeSinceLastCheck > CACHE_DURATION;
+  
+  // Controlla sempre se l'account è inattivo (potrebbe essere stato riattivato)
+  if (!account.isActive) {
+    console.log(`   ⚠️  Account ${accountId} is inactive - forcing check`);
+    return true;
+  }
+  
+  return cacheExpired;
 }
 
 /**
@@ -177,18 +188,19 @@ export async function checkAndUpdateAccountsStatus(
     }
 
     // 2. Verifica se serve il check (cache)
-    if (!forceCheck) {
-      const accountsNeedingCheck = await Promise.all(
-        userAccounts.map(acc => shouldCheckAccountStatus(acc.id))
-      );
+    const accountsNeedingCheck = await Promise.all(
+      userAccounts.map(acc => shouldCheckAccountStatus(acc.id, forceCheck))
+    );
 
-      const needsCheck = accountsNeedingCheck.some(needs => needs);
-      
-      if (!needsCheck) {
-        console.log('⏭️  [OnlySocial Sync] All accounts recently checked, skipping (cache valid)');
-        return { updated: 0, total: userAccounts.length, errors: [] };
-      }
+    const needsCheck = accountsNeedingCheck.some(needs => needs);
+    
+    if (!needsCheck) {
+      console.log('⏭️  [OnlySocial Sync] All accounts recently checked, skipping (cache valid)');
+      return { updated: 0, total: userAccounts.length, errors: [] };
     }
+    
+    console.log(`🔄 [OnlySocial Sync] Checking ${accountsNeedingCheck.filter(n => n).length}/${userAccounts.length} accounts (cache expired or inactive)`);
+
 
     // 3. Recupera stato da OnlySocial API
     let onlySocialAccounts: OnlySocialAccount[];
