@@ -194,3 +194,40 @@ export async function getScheduledPostsStats(userId: string) {
     failed,
   }
 }
+
+/**
+ * Recupera post schedulati da processare per il cron job
+ * 
+ * Criteri:
+ * - status = PENDING
+ * - scheduledFor compreso tra startWindow e endWindow
+ * 
+ * @param startWindow Data inizio finestra (es: now - 10 minuti per recupero errori)
+ * @param endWindow Data fine finestra (es: now + 60 minuti)
+ */
+export async function getScheduledPostsForUpload(
+  startWindow: Date,
+  endWindow: Date
+) {
+  console.log('🔍 Query database per post schedulati...')
+  console.log(`   Status: PENDING`)
+  console.log(`   ScheduledFor >= ${startWindow.toISOString()}`)
+  console.log(`   ScheduledFor <= ${endWindow.toISOString()}`)
+
+  const posts = await prisma.scheduledPost.findMany({
+    where: {
+      status: PostStatus.PENDING,
+      scheduledFor: {
+        gte: startWindow,
+        lte: endWindow
+      }
+    },
+    orderBy: {
+      scheduledFor: 'asc' // Processa prima i più urgenti
+    }
+  })
+
+  console.log(`✅ Trovati ${posts.length} post da processare`)
+  
+  return posts
+}
