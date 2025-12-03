@@ -81,6 +81,42 @@ export default function DashboardPage() {
     signOut({ callbackUrl: '/' })
   }
 
+  // Forza il refresh dello stato degli account OnlySocial
+  const handleSyncAccountsStatus = async () => {
+    console.log('🔄 [Dashboard] Force sync account status requested')
+    setIsLoading(true)
+    
+    try {
+      const res = await fetch('/api/user/profiles/sync', {
+        method: 'POST'
+      })
+      
+      if (res.ok) {
+        const data = await res.json()
+        console.log('✅ [Dashboard] Sync completed:', data)
+        
+        // Ricarica i profili per mostrare lo stato aggiornato
+        await loadUserProfiles()
+        
+        // Mostra notifica successo
+        if (data.result.updated > 0) {
+          alert(`✅ ${data.result.updated} account aggiornati`)
+        } else {
+          alert('✅ Tutti gli account sono già aggiornati')
+        }
+      } else {
+        const error = await res.json()
+        console.error('❌ [Dashboard] Sync failed:', error)
+        alert('❌ Errore durante l\'aggiornamento: ' + error.error)
+      }
+    } catch (error) {
+      console.error('❌ [Dashboard] Sync error:', error)
+      alert('❌ Errore di connessione durante l\'aggiornamento')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   // Gestione apertura modal selezione profilo
   const handleUploadScheduleClick = () => {
     console.log('🔘 [Dashboard] Click su "Carica + Schedula"')
@@ -385,11 +421,24 @@ export default function DashboardPage() {
                     <h2 className="text-lg font-medium text-gray-900">
                       Account Collegati
                     </h2>
-                    {!isLoading && profilesData && (
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
-                        {profilesData.totalProfiles} {profilesData.totalProfiles === 1 ? 'profilo' : 'profili'}
-                      </span>
-                    )}
+                    <div className="flex items-center gap-3">
+                      {!isLoading && profilesData && (
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
+                          {profilesData.totalProfiles} {profilesData.totalProfiles === 1 ? 'profilo' : 'profili'}
+                        </span>
+                      )}
+                      <button
+                        onClick={handleSyncAccountsStatus}
+                        disabled={isLoading}
+                        className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Aggiorna lo stato degli account da OnlySocial"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        Aggiorna
+                      </button>
+                    </div>
                   </div>
                   
                   {isLoading ? (
@@ -426,20 +475,49 @@ export default function DashboardPage() {
                                 <p>
                                   <span className="font-medium">ID:</span> {profile.accountId}
                                 </p>
+                                {profile.accountUuid && (
+                                  <p className="text-xs text-gray-500 truncate" title={profile.accountUuid}>
+                                    <span className="font-medium">UUID:</span> {profile.accountUuid.substring(0, 8)}...
+                                  </p>
+                                )}
                                 <p>
                                   <span className="font-medium">Assegnato il:</span>{' '}
                                   {new Date(profile.assignedAt).toLocaleDateString('it-IT')}
                                 </p>
-                                <p>
-                                  <span className="font-medium">Stato:</span>{' '}
-                                  <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                                    profile.isActive 
-                                      ? 'bg-green-100 text-green-800' 
-                                      : 'bg-gray-100 text-gray-800'
-                                  }`}>
-                                    {profile.isActive ? 'Attivo' : 'Inattivo'}
-                                  </span>
-                                </p>
+                              </div>
+                              
+                              {/* Status Badge */}
+                              <div className="mt-3">
+                                {profile.isActive ? (
+                                  <div className="flex items-center gap-1.5 text-xs">
+                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                      ✅ Attivo
+                                    </span>
+                                    <span className="text-gray-500">Autorizzato</span>
+                                  </div>
+                                ) : (
+                                  <div className="space-y-2">
+                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                      ❌ Non Autorizzato
+                                    </span>
+                                    <div className="bg-amber-50 border border-amber-200 rounded p-2">
+                                      <p className="text-xs text-amber-800 mb-1">
+                                        ⚠️ Questo account necessita di essere riconnesso.
+                                      </p>
+                                      <a 
+                                        href="https://app.onlysocial.io/dashboard" 
+                                        target="_blank" 
+                                        rel="noopener noreferrer"
+                                        className="text-xs text-blue-600 hover:text-blue-800 underline inline-flex items-center gap-1"
+                                      >
+                                        Riconnetti su OnlySocial
+                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                        </svg>
+                                      </a>
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             </div>
                           </div>
