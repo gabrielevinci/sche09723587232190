@@ -119,7 +119,7 @@ export async function POST(request: NextRequest) {
       socialAccountId,
       accountUuid,
       accountId,
-      caption: caption || 'Scheduled post',
+      caption: caption || '', // Lascia vuoto se non fornita
       postType: postType || 'reel',
       videoUrls,
       videoFilenames,
