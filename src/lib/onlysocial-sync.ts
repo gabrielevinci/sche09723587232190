@@ -206,11 +206,16 @@ export async function checkAndUpdateAccountsStatus(
     // 4. Per ogni account utente, verifica e aggiorna stato
     for (const userAccount of userAccounts) {
       try {
-        // Cerca l'account su OnlySocial (match per accountId o accountUuid)
+        // Cerca l'account su OnlySocial
+        // Match per UUID (prioritario) o ID numerico o accountId come fallback
         const onlySocialAccount = onlySocialAccounts.find(
           acc => 
-            acc.id.toString() === userAccount.accountId ||
-            acc.uuid === userAccount.accountUuid
+            // Match per UUID API vs accountUuid database
+            (userAccount.accountUuid && acc.uuid === userAccount.accountUuid) ||
+            // Match per UUID API vs accountId database (se accountId contiene UUID)
+            acc.uuid === userAccount.accountId ||
+            // Match per ID numerico API vs accountId database
+            acc.id.toString() === userAccount.accountId
         );
 
         if (!onlySocialAccount) {
@@ -230,6 +235,14 @@ export async function checkAndUpdateAccountsStatus(
           }
           continue;
         }
+
+        console.log(`✓ [OnlySocial Sync] Matched account: ${userAccount.accountName}`, {
+          dbAccountId: userAccount.accountId,
+          dbAccountUuid: userAccount.accountUuid,
+          apiId: onlySocialAccount.id,
+          apiUuid: onlySocialAccount.uuid,
+          authorized: onlySocialAccount.authorized
+        });
 
         // Verifica se lo stato è cambiato
         const isAuthorized = onlySocialAccount.authorized;

@@ -3,10 +3,10 @@
  * Gestisce upload video, creazione e schedulazione post
  */
 
-const ONLYSOCIAL_API_KEY = process.env.ONLYSOCIAL_API_KEY
+const ONLYSOCIAL_API_TOKEN = process.env.ONLYSOCIAL_API_TOKEN || process.env.ONLYSOCIAL_API_TOKEN
 const ONLYSOCIAL_WORKSPACE_UUID = process.env.ONLYSOCIAL_WORKSPACE_UUID
 
-if (!ONLYSOCIAL_API_KEY || !ONLYSOCIAL_WORKSPACE_UUID) {
+if (!ONLYSOCIAL_API_TOKEN || !ONLYSOCIAL_WORKSPACE_UUID) {
   throw new Error('OnlySocial API credentials not configured')
 }
 
@@ -69,7 +69,7 @@ export async function uploadVideoToOnlySocial({
   const response = await fetch(`${BASE_URL}/media`, {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${ONLYSOCIAL_API_KEY}`,
+      'Authorization': `Bearer ${ONLYSOCIAL_API_TOKEN}`,
     },
     body: formData
   })
@@ -203,7 +203,7 @@ export async function createOnlySocialPost({
   const response = await fetch(`${BASE_URL}/posts`, {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${ONLYSOCIAL_API_KEY}`,
+      'Authorization': `Bearer ${ONLYSOCIAL_API_TOKEN}`,
       'Content-Type': 'application/json'
     },
     body: JSON.stringify(payload)
@@ -234,7 +234,7 @@ export async function scheduleOnlySocialPost({
   const response = await fetch(`${BASE_URL}/posts/schedule/${postUuid}`, {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${ONLYSOCIAL_API_KEY}`,
+      'Authorization': `Bearer ${ONLYSOCIAL_API_TOKEN}`,
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({

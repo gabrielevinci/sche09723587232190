@@ -49,7 +49,7 @@ export async function POST() {
     }
 
     // Configura le credenziali OnlySocial
-    const apiKey = process.env.ONLYSOCIAL_API_KEY
+    const apiKey = process.env.ONLYSOCIAL_API_TOKEN || process.env.ONLYSOCIAL_API_KEY
     const workspaceUuid = process.env.ONLYSOCIAL_WORKSPACE_UUID
 
     if (!apiKey || !workspaceUuid) {

@@ -19,11 +19,11 @@ interface OnlySocialAccount {
 async function syncAccounts() {
   console.log('🔄 Sincronizzazione account OnlySocial...')
 
-  const apiKey = process.env.ONLYSOCIAL_API_KEY
+  const apiKey = process.env.ONLYSOCIAL_API_TOKEN || process.env.ONLYSOCIAL_API_KEY
   const workspaceUuid = process.env.ONLYSOCIAL_WORKSPACE_UUID
 
   if (!apiKey || !workspaceUuid) {
-    console.error('❌ ONLYSOCIAL_API_KEY o ONLYSOCIAL_WORKSPACE_UUID non configurati')
+    console.error('❌ ONLYSOCIAL_API_TOKEN o ONLYSOCIAL_WORKSPACE_UUID non configurati')
     process.exit(1)
   }
 
