@@ -133,25 +133,43 @@ export async function checkAndUpdateAccountsStatus(
   let updatedCount = 0;
 
   try {
-    // 1. Recupera gli account OnlySocial dell'utente dal database
-    const userAccounts = await prisma.socialAccount.findMany({
+    // 1. Recupera gli account OnlySocial dell'utente dal database tramite AdminAssociation
+    const adminAssociations = await prisma.adminAssociation.findMany({
       where: {
         userId: userId,
-        // Filtra solo account OnlySocial (hanno accountId popolato)
-        accountId: { not: '' }
+        isActive: true, // Solo associazioni attive
       },
-      select: {
-        id: true,
-        accountId: true,
-        accountUuid: true,
-        accountName: true,
-        platform: true,
-        isActive: true,
-        updatedAt: true,
+      include: {
+        socialAccount: {
+          select: {
+            id: true,
+            accountId: true,
+            accountUuid: true,
+            accountName: true,
+            platform: true,
+            isActive: true,
+            updatedAt: true,
+          }
+        }
       }
     });
 
+    // Estrai solo gli account con accountId (account OnlySocial)
+    const userAccounts = adminAssociations
+      .map(assoc => assoc.socialAccount)
+      .filter(account => account.accountId && account.accountId !== '');
+
     console.log(`📊 [OnlySocial Sync] Found ${userAccounts.length} OnlySocial accounts in database`);
+    
+    if (userAccounts.length > 0) {
+      console.log('   → Accounts to check:', userAccounts.map(acc => ({
+        name: acc.accountName,
+        id: acc.accountId,
+        uuid: acc.accountUuid,
+        isActive: acc.isActive,
+        platform: acc.platform
+      })));
+    }
 
     if (userAccounts.length === 0) {
       console.log('ℹ️  [OnlySocial Sync] No OnlySocial accounts to check');
