@@ -81,42 +81,6 @@ export default function DashboardPage() {
     signOut({ callbackUrl: '/' })
   }
 
-  // Forza il refresh dello stato degli account OnlySocial
-  const handleSyncAccountsStatus = async () => {
-    console.log('🔄 [Dashboard] Force sync account status requested')
-    setIsLoading(true)
-    
-    try {
-      const res = await fetch('/api/user/profiles/sync', {
-        method: 'POST'
-      })
-      
-      if (res.ok) {
-        const data = await res.json()
-        console.log('✅ [Dashboard] Sync completed:', data)
-        
-        // Ricarica i profili per mostrare lo stato aggiornato
-        await loadUserProfiles()
-        
-        // Mostra notifica successo
-        if (data.result.updated > 0) {
-          alert(`✅ ${data.result.updated} account aggiornati`)
-        } else {
-          alert('✅ Tutti gli account sono già aggiornati')
-        }
-      } else {
-        const error = await res.json()
-        console.error('❌ [Dashboard] Sync failed:', error)
-        alert('❌ Errore durante l\'aggiornamento: ' + error.error)
-      }
-    } catch (error) {
-      console.error('❌ [Dashboard] Sync error:', error)
-      alert('❌ Errore di connessione durante l\'aggiornamento')
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
   // Gestione apertura modal selezione profilo
   const handleUploadScheduleClick = () => {
     console.log('🔘 [Dashboard] Click su "Carica + Schedula"')
@@ -421,24 +385,11 @@ export default function DashboardPage() {
                     <h2 className="text-lg font-medium text-gray-900">
                       Account Collegati
                     </h2>
-                    <div className="flex items-center gap-3">
-                      {!isLoading && profilesData && (
-                        <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
-                          {profilesData.totalProfiles} {profilesData.totalProfiles === 1 ? 'profilo' : 'profili'}
-                        </span>
-                      )}
-                      <button
-                        onClick={handleSyncAccountsStatus}
-                        disabled={isLoading}
-                        className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                        title="Aggiorna lo stato degli account da OnlySocial"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                        </svg>
-                        Aggiorna
-                      </button>
-                    </div>
+                    {!isLoading && profilesData && (
+                      <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
+                        {profilesData.totalProfiles} {profilesData.totalProfiles === 1 ? 'profilo' : 'profili'}
+                      </span>
+                    )}
                   </div>
                   
                   {isLoading ? (
@@ -669,35 +620,56 @@ export default function DashboardPage() {
               </div>
 
               <div className="mt-5 space-y-2">
-                {(() => {
-                  console.log('🎨 [Dashboard] Rendering profili nel modal:', profilesData?.socialProfiles?.length)
-                  return null
-                })()}
                 {profilesData?.socialProfiles && profilesData.socialProfiles.length > 0 ? (
-                  profilesData.socialProfiles.map((profile) => (
-                    <button
-                      key={profile.id}
-                      onClick={() => handleProfileSelect(profile)}
-                      className="w-full flex items-center p-3 border border-gray-200 rounded-lg hover:bg-blue-50 hover:border-blue-300 transition-colors text-left"
-                    >
-                      <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                        <span className="text-blue-600 font-semibold text-sm">
-                          {profile.platform.charAt(0).toUpperCase()}
-                        </span>
-                      </div>
-                      <div className="ml-3 flex-1">
-                        <h4 className="font-medium text-gray-900">{profile.accountName}</h4>
-                        <p className="text-xs text-gray-500 capitalize">{profile.platform.replace('_', ' ')}</p>
-                      </div>
-                      <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                      </svg>
-                    </button>
-                  ))
+                  profilesData.socialProfiles.map((profile) => {
+                    const isActive = profile.isActive;
+                    return (
+                      <button
+                        key={profile.id}
+                        onClick={() => isActive && handleProfileSelect(profile)}
+                        disabled={!isActive}
+                        className={`w-full flex items-center p-3 border rounded-lg transition-colors text-left ${
+                          isActive
+                            ? 'border-gray-200 hover:bg-blue-50 hover:border-blue-300 cursor-pointer'
+                            : 'border-red-200 bg-red-50 cursor-not-allowed opacity-60'
+                        }`}
+                      >
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                          isActive ? 'bg-blue-100' : 'bg-red-100'
+                        }`}>
+                          <span className={`font-semibold text-sm ${
+                            isActive ? 'text-blue-600' : 'text-red-600'
+                          }`}>
+                            {profile.platform.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                        <div className="ml-3 flex-1">
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-medium text-gray-900">{profile.accountName}</h4>
+                            {!isActive && (
+                              <span className="text-xs px-2 py-0.5 bg-red-100 text-red-700 rounded">
+                                Non autorizzato
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-gray-500 capitalize">{profile.platform.replace('_', ' ')}</p>
+                          {!isActive && (
+                            <p className="text-xs text-red-600 mt-1">
+                              Riconnetti l&apos;account su OnlySocial
+                            </p>
+                          )}
+                        </div>
+                        {isActive && (
+                          <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                        )}
+                      </button>
+                    );
+                  })
                 ) : (
                   <div className="text-center py-4 text-gray-500">
-                    <p>⚠️ DEBUG: Nessun profilo trovato</p>
-                    <p className="text-xs mt-2">profilesData: {JSON.stringify(profilesData?.socialProfiles)}</p>
+                    <p>Nessun profilo disponibile</p>
                   </div>
                 )}
               </div>
