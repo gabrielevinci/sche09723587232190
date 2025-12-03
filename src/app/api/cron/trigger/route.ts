@@ -58,14 +58,19 @@ export async function POST(request: NextRequest) {
     const actions: CronAction[] = []
     
     // AZIONE 1: Calcola finestra temporale
-    // I video devono essere caricati su OnlySocial circa 2 ore prima della pubblicazione
-    const now = new Date()
-    const startWindow = new Date(now.getTime() - 10 * 60 * 1000) // now - 10 minuti (recupero eventuali errori)
-    const endWindow = new Date(now.getTime() + 120 * 60 * 1000) // now + 120 minuti (2 ore)
+    // IMPORTANTE: Il database contiene date in formato italiano (UTC+1)
+    // Quindi dobbiamo aggiungere 1 ora a "now" per allinearlo al database
+    const nowUTC = new Date()
+    const nowItalian = new Date(nowUTC.getTime() + (60 * 60 * 1000)) // +1 ora per timezone italiano
     
-    console.log('⏰ Finestra temporale:')
-    console.log(`   Da: ${startWindow.toISOString()}`)
-    console.log(`   A: ${endWindow.toISOString()}`)
+    const startWindow = new Date(nowItalian.getTime() - 10 * 60 * 1000) // now - 10 minuti
+    const endWindow = new Date(nowItalian.getTime() + 60 * 60 * 1000) // now + 60 minuti
+    
+    console.log('⏰ Finestra temporale (ora italiana):')
+    console.log(`   Now UTC: ${nowUTC.toISOString()}`)
+    console.log(`   Now Italian: ${nowItalian.toISOString()}`)
+    console.log(`   Da: ${startWindow.toISOString()} (now - 10min)`)
+    console.log(`   A: ${endWindow.toISOString()} (now + 60min)`)
 
     // AZIONE 2: Recupera post da processare
     console.log('📝 Azione: Recupero post schedulati da processare...')

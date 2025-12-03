@@ -52,7 +52,7 @@
 
 ## 🔄 WORKFLOW DETTAGLIATO
 
-### Quando il Cron Job Scatta (ogni 50 minuti):
+### Quando il Cron Job Scatta (ogni 60 minuti):
 
 ```
 1. AUTENTICAZIONE
@@ -60,7 +60,7 @@
 2. CALCOLA FINESTRA TEMPORALE
    - now = 14:00
    - startWindow = 13:50 (now - 10min)
-   - endWindow = 15:00 (now + 60min)
+   - endWindow = 15:30 (now + 90min) ⚠️ Margin per cron ogni 60min
    ↓
 3. QUERY DATABASE
    SELECT * FROM scheduled_post
