@@ -9,8 +9,9 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getScheduledPostsForUpload } from '@/lib/db/neon'
+import { getScheduledPostsForUpload, updateScheduledPostStatus } from '@/lib/db/neon'
 import { uploadVideoToOnlySocial, createOnlySocialPost, scheduleOnlySocialPost } from '@/lib/onlysocial'
+import { PostStatus } from '@prisma/client'
 
 // Secret per autenticare le chiamate dal cron job
 const CRON_SECRET = process.env.CRON_SECRET
@@ -149,13 +150,16 @@ export async function POST(request: NextRequest) {
         
         console.log(`✅ Post schedulato per: ${scheduleResult.scheduled_at}`)
         
-        // Step 4: Aggiorna database (sarà implementato in neon.ts)
-        // await updateScheduledPostStatus(post.id, {
-        //   status: 'scheduled',
-        //   onlySocialMediaIds: [parseInt(uploadResult.id)],
-        //   onlySocialPostUuid: createResult.uuid,
-        //   onlySocialMediaUrl: uploadResult.url
-        // })
+        // Step 4: Aggiorna database
+        console.log('💾 Step 4: Aggiornamento database...')
+        await updateScheduledPostStatus(post.id, {
+          status: PostStatus.SCHEDULED,
+          onlySocialMediaIds: [parseInt(uploadResult.id)],
+          onlySocialPostUuid: createResult.uuid,
+          onlySocialMediaUrl: uploadResult.url
+        })
+        
+        console.log(`✅ Database aggiornato - Status: SCHEDULED`)
         
         results.success++
         results.details.push({
@@ -167,18 +171,26 @@ export async function POST(request: NextRequest) {
         
       } catch (error) {
         console.error(`❌ Errore processando post ${post.id}:`, error)
+        
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+        
+        // Aggiorna database con errore
+        try {
+          await updateScheduledPostStatus(post.id, {
+            status: PostStatus.FAILED,
+            errorMessage: errorMessage
+          })
+          console.log(`💾 Database aggiornato - Status: FAILED`)
+        } catch (updateError) {
+          console.error(`❌ Errore aggiornamento database:`, updateError)
+        }
+        
         results.failed++
         results.details.push({
           postId: post.id,
           status: 'failed',
-          error: error instanceof Error ? error.message : 'Unknown error'
+          error: errorMessage
         })
-        
-        // TODO: Aggiornare database con errore
-        // await updateScheduledPostStatus(post.id, {
-        //   status: 'error',
-        //   errorMessage: error.message
-        // })
       }
     }
 

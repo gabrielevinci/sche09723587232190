@@ -231,3 +231,41 @@ export async function getScheduledPostsForUpload(
   
   return posts
 }
+
+/**
+ * Aggiorna lo stato di un post schedulato dopo il processamento del cron job
+ * 
+ * @param postId ID del post da aggiornare
+ * @param data Dati da aggiornare
+ */
+export async function updateScheduledPostStatus(
+  postId: string,
+  data: {
+    status: PostStatus
+    onlySocialMediaIds?: number[]
+    onlySocialPostUuid?: string
+    onlySocialMediaUrl?: string
+    errorMessage?: string | null
+  }
+) {
+  // Timestamp italiano
+  const now = new Date()
+  const italianTime = new Date(now.getTime() + (60 * 60 * 1000))
+
+  console.log(`📝 Aggiornamento database per post ${postId}:`)
+  console.log(`   Status: ${data.status}`)
+  if (data.onlySocialPostUuid) {
+    console.log(`   OnlySocial Post UUID: ${data.onlySocialPostUuid}`)
+  }
+  if (data.onlySocialMediaIds) {
+    console.log(`   OnlySocial Media IDs: ${data.onlySocialMediaIds.join(', ')}`)
+  }
+
+  return await prisma.scheduledPost.update({
+    where: { id: postId },
+    data: {
+      ...data,
+      updatedAt: italianTime
+    }
+  })
+}

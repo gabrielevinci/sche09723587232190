@@ -102,6 +102,8 @@ model ScheduledPost {
 
 enum PostStatus {
   PENDING           // In attesa di pubblicazione
+  MEDIA_UPLOADED    // Media caricato su OnlySocial, in attesa di schedulazione
+  SCHEDULED         // Schedulato su OnlySocial
   PUBLISHED         // Pubblicato con successo
   FAILED            // Errore durante pubblicazione
   CANCELLED         // Cancellato dall'utente
