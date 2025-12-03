@@ -58,9 +58,10 @@ export async function POST(request: NextRequest) {
     const actions: CronAction[] = []
     
     // AZIONE 1: Calcola finestra temporale
+    // I video devono essere caricati su OnlySocial circa 2 ore prima della pubblicazione
     const now = new Date()
     const startWindow = new Date(now.getTime() - 10 * 60 * 1000) // now - 10 minuti (recupero eventuali errori)
-    const endWindow = new Date(now.getTime() + 60 * 60 * 1000) // now + 60 minuti
+    const endWindow = new Date(now.getTime() + 120 * 60 * 1000) // now + 120 minuti (2 ore)
     
     console.log('⏰ Finestra temporale:')
     console.log(`   Da: ${startWindow.toISOString()}`)
