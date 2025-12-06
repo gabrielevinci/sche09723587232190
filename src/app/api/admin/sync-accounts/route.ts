@@ -98,6 +98,7 @@ export async function POST() {
           update: {
             platform: account.provider.toLowerCase(),
             accountName: account.name || account.username,
+            accountUuid: account.uuid,  // Aggiorna anche l'UUID
             isActive: true,
             updatedAt: new Date(),
           },
@@ -105,6 +106,7 @@ export async function POST() {
             platform: account.provider.toLowerCase(),
             accountName: account.name || account.username,
             accountId: account.uuid,
+            accountUuid: account.uuid,  // Salva l'UUID
             isActive: true,
           },
         })
