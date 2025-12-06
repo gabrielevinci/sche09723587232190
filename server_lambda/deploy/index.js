@@ -6,6 +6,7 @@
  * 1. Cron job scheduling (trigger da Cron-Job.org)
  * 2. Chiamate API OnlySocial con rate limiting (max 25 req/min)
  * 3. Aggiornamento database Neon
+ * 4. Verifica stato account OnlySocial (proxy per Vercel)
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.handler = void 0;
@@ -41,12 +42,15 @@ const handler = async (event) => {
             case 'warm':
                 result = await handleWarmup();
                 break;
+            case 'check-accounts':
+                result = await handleCheckAccounts();
+                break;
             default:
                 result = {
                     statusCode: 400,
                     body: JSON.stringify({
                         error: `Unknown action: ${action}`,
-                        availableActions: ['schedule', 'health', 'warm']
+                        availableActions: ['schedule', 'health', 'warm', 'check-accounts']
                     })
                 };
         }
@@ -109,6 +113,38 @@ async function handleWarmup() {
             timestamp: new Date().toISOString()
         })
     };
+}
+/**
+ * Check accounts endpoint - verifica stato account OnlySocial
+ * Chiamato da Vercel per evitare chiamate dirette a OnlySocial
+ */
+async function handleCheckAccounts() {
+    console.log('📡 [Lambda] Checking OnlySocial accounts status...');
+    try {
+        // Fetch accounts da OnlySocial API
+        const onlySocialAccounts = await (0, onlysocial_client_1.fetchOnlySocialAccounts)();
+        // Restituisci la lista a Vercel
+        return {
+            statusCode: 200,
+            body: JSON.stringify({
+                success: true,
+                accounts: onlySocialAccounts,
+                count: onlySocialAccounts.length,
+                timestamp: new Date().toISOString()
+            })
+        };
+    }
+    catch (error) {
+        console.error('❌ [Lambda] Failed to check accounts:', error);
+        return {
+            statusCode: 500,
+            body: JSON.stringify({
+                success: false,
+                error: error instanceof Error ? error.message : 'Unknown error',
+                accounts: []
+            })
+        };
+    }
 }
 /**
  * Handler cron job - schedula video su OnlySocial

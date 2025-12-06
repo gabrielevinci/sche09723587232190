@@ -6,7 +6,7 @@
  * IMPORTANTE: Headers puliti - nessun riferimento a Vercel
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.scheduleOnlySocialPost = exports.createOnlySocialPost = exports.uploadVideoToOnlySocial = void 0;
+exports.fetchOnlySocialAccounts = exports.scheduleOnlySocialPost = exports.createOnlySocialPost = exports.uploadVideoToOnlySocial = void 0;
 const rate_limiter_1 = require("./rate-limiter");
 const ONLYSOCIAL_API_TOKEN = process.env.ONLYSOCIAL_API_TOKEN || process.env.ONLYSOCIAL_API_KEY;
 const ONLYSOCIAL_WORKSPACE_UUID = process.env.ONLYSOCIAL_WORKSPACE_UUID;
@@ -182,7 +182,25 @@ async function _scheduleOnlySocialPost({ postUuid, postNow = false }) {
     console.log(`✅ [OnlySocial] Post ${postNow ? 'published' : 'scheduled'}: ${result.scheduled_at}`);
     return result;
 }
+/**
+ * Fetch lista account da OnlySocial (per verifica stato)
+ */
+async function _fetchOnlySocialAccounts() {
+    console.log(`📡 [OnlySocial] Fetching accounts list...`);
+    const response = await fetch(`${BASE_URL}/accounts`, {
+        method: 'GET',
+        headers: getCleanHeaders()
+    });
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`OnlySocial fetch accounts failed: ${response.status} - ${errorText}`);
+    }
+    const data = await response.json();
+    console.log(`✅ [OnlySocial] Received ${data.data?.length || 0} accounts`);
+    return data.data || [];
+}
 // Export funzioni wrapped con rate limiter
 exports.uploadVideoToOnlySocial = rate_limiter_1.onlySocialLimiter.wrap(_uploadVideoToOnlySocial);
 exports.createOnlySocialPost = rate_limiter_1.onlySocialLimiter.wrap(_createOnlySocialPost);
 exports.scheduleOnlySocialPost = rate_limiter_1.onlySocialLimiter.wrap(_scheduleOnlySocialPost);
+exports.fetchOnlySocialAccounts = rate_limiter_1.onlySocialLimiter.wrap(_fetchOnlySocialAccounts);
