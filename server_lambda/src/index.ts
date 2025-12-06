@@ -137,25 +137,41 @@ async function handleWarmup(): Promise<LambdaResult> {
 
 /**
  * Handler cron job - schedula video su OnlySocial
+ * 
+ * Logica (ogni ora):
+ * 1. Controlla post PENDING con scheduledFor nelle prossime 60 min (now → now+60')
+ *    → Carica su OnlySocial e schedula per la data prevista
+ * 2. Controlla post PENDING con scheduledFor nell'ultima ora (now-60' → now)
+ *    → Recupera post mancati per errori, li pubblica subito (postNow: true)
  */
 async function handleScheduleCronJob(): Promise<LambdaResult> {
   console.log('⏰ [Lambda] Processing scheduled videos...');
   
   const now = new Date();
+  const oneHourAgo = new Date(now.getTime() - (60 * 60 * 1000));
+  const oneHourFromNow = new Date(now.getTime() + (60 * 60 * 1000));
+  
   const results = {
     processed: 0,
     successful: 0,
     failed: 0,
+    scheduled: 0,    // Post schedulati per il futuro
+    publishedNow: 0, // Post pubblicati subito (recupero)
     errors: [] as string[]
   };
   
   try {
-    // 1. Query video da schedulare (status PENDING, scheduledFor <= now)
+    console.log(`🔍 [Lambda] Time window:`);
+    console.log(`   Recovery (now-60'): ${formatInTimeZone(oneHourAgo, TIMEZONE, 'yyyy-MM-dd HH:mm')} to ${formatInTimeZone(now, TIMEZONE, 'yyyy-MM-dd HH:mm')}`);
+    console.log(`   Upcoming (now+60'): ${formatInTimeZone(now, TIMEZONE, 'yyyy-MM-dd HH:mm')} to ${formatInTimeZone(oneHourFromNow, TIMEZONE, 'yyyy-MM-dd HH:mm')}`);
+    
+    // Query: post PENDING nella finestra -60' → +60'
     const videosToSchedule = await prisma.scheduledPost.findMany({
       where: {
         status: 'PENDING',
         scheduledFor: {
-          lte: now
+          gte: oneHourAgo,     // Da 1 ora fa (recupero mancati)
+          lte: oneHourFromNow  // Fino a 1 ora nel futuro (prossima schedulazione)
         }
       },
       orderBy: {
@@ -164,7 +180,7 @@ async function handleScheduleCronJob(): Promise<LambdaResult> {
       take: 25 // Limita a 25 per rispettare rate limit di 25 req/min
     });
     
-    console.log(`📊 [Lambda] Found ${videosToSchedule.length} videos to schedule`);
+    console.log(`📊 [Lambda] Found ${videosToSchedule.length} videos to process`);
     
     if (videosToSchedule.length === 0) {
       return {
@@ -180,10 +196,14 @@ async function handleScheduleCronJob(): Promise<LambdaResult> {
     for (const video of videosToSchedule) {
       results.processed++;
       
+      // Determina se il post è scaduto (scheduledFor < now) o futuro
+      const isOverdue = video.scheduledFor < now;
+      
       try {
         console.log(`\n📹 [Lambda] Processing video ${results.processed}/${videosToSchedule.length}`);
         console.log(`   ID: ${video.id}`);
         console.log(`   Scheduled: ${formatInTimeZone(video.scheduledFor, TIMEZONE, 'yyyy-MM-dd HH:mm')}`);
+        console.log(`   Type: ${isOverdue ? '⚠️ OVERDUE (will publish now)' : '📅 UPCOMING (will schedule)'}`);
         
         // Recupera SocialAccount separatamente
         const socialAccount = await prisma.socialAccount.findUnique({
@@ -240,33 +260,42 @@ async function handleScheduleCronJob(): Promise<LambdaResult> {
           scheduledFor: video.scheduledFor
         });
         
-        // Step 3: Schedula post
-        console.log(`   3/3 Scheduling post...`);
+        // Step 3: Schedula post (o pubblica subito se scaduto)
+        console.log(`   3/3 ${isOverdue ? 'Publishing now...' : 'Scheduling post...'}`);
         await scheduleOnlySocialPost({
-          postUuid: postResult.uuid
+          postUuid: postResult.uuid,
+          postNow: isOverdue // true = pubblica subito, false = schedula per data prevista
         });
         
-        // Aggiorna database: SCHEDULED
+        // Aggiorna database
+        const finalStatus = isOverdue ? 'PUBLISHED' : 'SCHEDULED';
         await prisma.scheduledPost.update({
           where: { id: video.id },
           data: {
-            status: 'SCHEDULED',
+            status: finalStatus,
             onlySocialMediaIds: [mediaId],
             onlySocialPostUuid: postResult.uuid,
             onlySocialMediaUrl: uploadResult.url,
+            publishedAt: isOverdue ? new Date() : null,
             updatedAt: new Date()
           }
         });
         
         results.successful++;
-        console.log(`✅ [Lambda] Video ${video.id} scheduled successfully`);
+        if (isOverdue) {
+          results.publishedNow++;
+          console.log(`✅ [Lambda] Video ${video.id} published NOW (recovery)`);
+        } else {
+          results.scheduled++;
+          console.log(`✅ [Lambda] Video ${video.id} scheduled for ${formatInTimeZone(video.scheduledFor, TIMEZONE, 'yyyy-MM-dd HH:mm')}`);
+        }
         
       } catch (error) {
         results.failed++;
         const errorMsg = error instanceof Error ? error.message : 'Unknown error';
         results.errors.push(`Video ${video.id}: ${errorMsg}`);
         
-        console.error(`❌ [Lambda] Failed to schedule video ${video.id}:`, errorMsg);
+        console.error(`❌ [Lambda] Failed to ${isOverdue ? 'publish' : 'schedule'} video ${video.id}:`, errorMsg);
         
         // Aggiorna database: FAILED
         await prisma.scheduledPost.update({
@@ -285,8 +314,9 @@ async function handleScheduleCronJob(): Promise<LambdaResult> {
     
     // Risultato finale
     console.log(`\n📊 [Lambda] Processing complete:`);
-    console.log(`   Processed: ${results.processed}`);
-    console.log(`   Successful: ${results.successful}`);
+    console.log(`   Total processed: ${results.processed}`);
+    console.log(`   Scheduled for future: ${results.scheduled}`);
+    console.log(`   Published now (recovery): ${results.publishedNow}`);
     console.log(`   Failed: ${results.failed}`);
     
     return {

@@ -224,19 +224,23 @@ async function _createOnlySocialPost({
 
 /**
  * Schedula post su OnlySocial
+ * @param postUuid - UUID del post da schedulare
+ * @param postNow - Se true, pubblica immediatamente (per recupero post scaduti)
  */
 async function _scheduleOnlySocialPost({ 
-  postUuid 
+  postUuid,
+  postNow = false
 }: { 
-  postUuid: string; 
+  postUuid: string;
+  postNow?: boolean;
 }): Promise<SchedulePostResult> {
-  console.log(`⏰ [OnlySocial] Scheduling post: ${postUuid}`);
+  console.log(`⏰ [OnlySocial] ${postNow ? 'Publishing NOW' : 'Scheduling'} post: ${postUuid}`);
   
   const response = await fetch(`${BASE_URL}/posts/schedule/${postUuid}`, {
     method: 'POST',
     headers: getCleanHeaders(),
     body: JSON.stringify({
-      postNow: false
+      postNow: postNow
     })
   });
   
@@ -246,7 +250,7 @@ async function _scheduleOnlySocialPost({
   }
   
   const result = await response.json() as SchedulePostResult;
-  console.log(`✅ [OnlySocial] Post scheduled for: ${result.scheduled_at}`);
+  console.log(`✅ [OnlySocial] Post ${postNow ? 'published' : 'scheduled'}: ${result.scheduled_at}`);
   
   return result;
 }

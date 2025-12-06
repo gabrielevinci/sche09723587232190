@@ -50,3 +50,5 @@ server_lambda/dist
 server_lambda/*.zip
 server_lambda/*.zip
 server_lambda/.aws-sam
+
+lambda.zip
