@@ -277,8 +277,8 @@ async function handleScheduleCronJob(): Promise<LambdaResult> {
             retryCount: { increment: 1 },
             updatedAt: new Date()
           }
-        }).catch(err => {
-          console.error(`Failed to update status for video ${video.id}:`, err);
+        }).catch((updateErr: Error) => {
+          console.error(`Failed to update status for video ${video.id}:`, updateErr.message);
         });
       }
     }

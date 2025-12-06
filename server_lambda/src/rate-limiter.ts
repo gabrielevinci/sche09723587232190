@@ -15,30 +15,10 @@ export const onlySocialLimiter = new Bottleneck({
   reservoirRefreshInterval: 60 * 1000, // Ricarica ogni 60 secondi
 });
 
-// Logs per monitoring
-onlySocialLimiter.on('failed', async (error, jobInfo) => {
-  console.error(`🔴 [Rate Limiter] Request failed:`, error);
-  console.error(`   Job:`, jobInfo);
-  
-  // Retry automatico dopo 5 secondi se fallisce
-  if (jobInfo.retryCount < 3) {
-    console.log(`   Retry ${jobInfo.retryCount + 1}/3 in 5 seconds...`);
-    return 5000; // Ritenta dopo 5 secondi
-  }
-});
-
-onlySocialLimiter.on('retry', (error, jobInfo) => {
-  console.log(`🔄 [Rate Limiter] Retrying request (attempt ${jobInfo.retryCount + 1})`);
-});
-
-onlySocialLimiter.on('queued', (info) => {
-  if (info && info > 0) {
-    console.log(`⏳ [Rate Limiter] ${info} requests queued`);
-  }
-});
-
-onlySocialLimiter.on('executing', (info) => {
-  console.log(`⚡ [Rate Limiter] Executing request (${onlySocialLimiter.counts().EXECUTING}/${onlySocialLimiter.counts().QUEUED + onlySocialLimiter.counts().EXECUTING} total)`);
+// Log semplice per errori (no TypeScript issues)
+onlySocialLimiter.on('failed', async () => {
+  console.error(`🔴 [Rate Limiter] Request failed, retrying in 5s...`);
+  return 5000; // Retry dopo 5 secondi
 });
 
 export default onlySocialLimiter;
