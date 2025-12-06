@@ -50,6 +50,16 @@ interface SchedulePostResult {
   needs_approval: boolean;
 }
 
+interface OnlySocialAccount {
+  id: number;
+  uuid: string;
+  name: string;
+  username: string;
+  provider: string;
+  authorized: boolean;
+  created_at: string;
+}
+
 /**
  * Upload video da URL (Digital Ocean) a OnlySocial
  */
@@ -255,7 +265,30 @@ async function _scheduleOnlySocialPost({
   return result;
 }
 
+/**
+ * Fetch lista account da OnlySocial (per verifica stato)
+ */
+async function _fetchOnlySocialAccounts(): Promise<OnlySocialAccount[]> {
+  console.log(`📡 [OnlySocial] Fetching accounts list...`);
+  
+  const response = await fetch(`${BASE_URL}/accounts`, {
+    method: 'GET',
+    headers: getCleanHeaders()
+  });
+  
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`OnlySocial fetch accounts failed: ${response.status} - ${errorText}`);
+  }
+  
+  const data = await response.json() as { data: OnlySocialAccount[] };
+  console.log(`✅ [OnlySocial] Received ${data.data?.length || 0} accounts`);
+  
+  return data.data || [];
+}
+
 // Export funzioni wrapped con rate limiter
 export const uploadVideoToOnlySocial = onlySocialLimiter.wrap(_uploadVideoToOnlySocial);
 export const createOnlySocialPost = onlySocialLimiter.wrap(_createOnlySocialPost);
 export const scheduleOnlySocialPost = onlySocialLimiter.wrap(_scheduleOnlySocialPost);
+export const fetchOnlySocialAccounts = onlySocialLimiter.wrap(_fetchOnlySocialAccounts);

@@ -1,14 +1,18 @@
 /**
- * API Route: Sync Social Accounts from OnlySocial
+ * API Route: Sync Social Accounts from OnlySocial (via Lambda)
  * POST /api/admin/sync-accounts
  * 
  * Sincronizza gli account social da OnlySocial nel database locale
+ * NOTA: Tutte le chiamate a OnlySocial passano da Lambda per isolamento
  */
 
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+
+// URL dell'API Gateway Lambda
+const LAMBDA_API_URL = process.env.LAMBDA_API_URL || 'https://sxibldy7k8.execute-api.eu-central-1.amazonaws.com/prod/schedule'
 
 interface OnlySocialAccount {
   id: number
@@ -18,10 +22,6 @@ interface OnlySocialAccount {
   provider: string
   created_at: string
   updated_at: string
-}
-
-interface OnlySocialResponse {
-  data: OnlySocialAccount[]
 }
 
 export async function POST() {
@@ -48,44 +48,40 @@ export async function POST() {
       )
     }
 
-    // Configura le credenziali OnlySocial
-    const apiKey = process.env.ONLYSOCIAL_API_TOKEN || process.env.ONLYSOCIAL_API_KEY
-    const workspaceUuid = process.env.ONLYSOCIAL_WORKSPACE_UUID
+    // Chiama Lambda per ottenere gli account da OnlySocial
+    console.log('🔄 Fetching accounts via Lambda...')
+    console.log('   URL:', LAMBDA_API_URL)
 
-    if (!apiKey || !workspaceUuid) {
-      return NextResponse.json(
-        { error: 'Configurazione OnlySocial mancante' },
-        { status: 500 }
-      )
-    }
-
-    // Chiama l'API di OnlySocial per ottenere gli account
-    const onlySocialUrl = `https://app.onlysocial.io/os/api/${workspaceUuid}/accounts`
-    
-    console.log('🔄 Fetching accounts from OnlySocial...')
-    console.log('   URL:', onlySocialUrl)
-
-    const response = await fetch(onlySocialUrl, {
-      method: 'GET',
+    const response = await fetch(LAMBDA_API_URL, {
+      method: 'POST',
       headers: {
-        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
       },
-      redirect: 'follow',
+      body: JSON.stringify({ action: 'check-accounts' }),
     })
 
     if (!response.ok) {
       const errorText = await response.text()
-      console.error('❌ OnlySocial API Error:', response.status, errorText)
+      console.error('❌ Lambda API Error:', response.status, errorText)
       return NextResponse.json(
-        { error: `Errore OnlySocial API: ${response.status}` },
+        { error: `Errore Lambda API: ${response.status}` },
         { status: response.status }
       )
     }
 
-    const data: OnlySocialResponse = await response.json()
-    console.log(`✅ Ricevuti ${data.data?.length || 0} account da OnlySocial`)
+    const lambdaData = await response.json()
+    
+    if (!lambdaData.success) {
+      return NextResponse.json(
+        { error: lambdaData.error || 'Lambda returned error' },
+        { status: 500 }
+      )
+    }
+    
+    const accounts: OnlySocialAccount[] = lambdaData.accounts || []
+    console.log(`✅ Ricevuti ${accounts.length} account da Lambda`)
 
-    if (!data.data || data.data.length === 0) {
+    if (accounts.length === 0) {
       return NextResponse.json({
         success: true,
         message: 'Nessun account trovato su OnlySocial',
@@ -95,7 +91,7 @@ export async function POST() {
 
     // Sincronizza gli account nel database
     let syncedCount = 0
-    for (const account of data.data) {
+    for (const account of accounts) {
       try {
         await prisma.socialAccount.upsert({
           where: { accountId: account.uuid },
@@ -119,13 +115,13 @@ export async function POST() {
       }
     }
 
-    console.log(`🎉 Sincronizzazione completata: ${syncedCount}/${data.data.length} account`)
+    console.log(`🎉 Sincronizzazione completata: ${syncedCount}/${accounts.length} account`)
 
     return NextResponse.json({
       success: true,
       message: `Sincronizzati ${syncedCount} account da OnlySocial`,
       synced: syncedCount,
-      total: data.data.length,
+      total: accounts.length,
     })
 
   } catch (error) {

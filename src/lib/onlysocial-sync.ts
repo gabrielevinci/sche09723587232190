@@ -50,53 +50,53 @@ async function shouldCheckAccountStatus(accountId: string, forceCheck: boolean =
   return cacheExpired;
 }
 
+// URL dell'API Gateway Lambda
+const LAMBDA_API_URL = process.env.LAMBDA_API_URL || 'https://sxibldy7k8.execute-api.eu-central-1.amazonaws.com/prod/schedule';
+
 /**
- * Recupera lo stato degli account da OnlySocial API
+ * Recupera lo stato degli account tramite Lambda (proxy a OnlySocial)
+ * Vercel NON chiama direttamente OnlySocial - passa tutto da Lambda
  */
 async function fetchOnlySocialAccountsStatus(): Promise<OnlySocialAccount[]> {
-  const workspaceUuid = process.env.ONLYSOCIAL_WORKSPACE_UUID;
-  const apiToken = process.env.ONLYSOCIAL_API_TOKEN || process.env.ONLYSOCIAL_API_KEY;
-
-  if (!workspaceUuid || !apiToken) {
-    console.error('❌ [OnlySocial Sync] Missing credentials in environment');
-    throw new Error('OnlySocial credentials not configured');
-  }
-
-  const url = `https://app.onlysocial.io/os/api/${workspaceUuid}/accounts`;
-
-  console.log('📡 [OnlySocial Sync] Fetching accounts status from API...');
-  console.log('   → URL:', url);
+  console.log('📡 [OnlySocial Sync] Fetching accounts status via Lambda...');
+  console.log('   → URL:', LAMBDA_API_URL);
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT);
 
   try {
-    const response = await fetch(url, {
-      method: 'GET',
+    const response = await fetch(LAMBDA_API_URL, {
+      method: 'POST',
       headers: {
-        'Authorization': `Bearer ${apiToken}`,
+        'Content-Type': 'application/json',
         'Accept': 'application/json',
       },
+      body: JSON.stringify({ action: 'check-accounts' }),
       signal: controller.signal,
     });
 
     clearTimeout(timeoutId);
 
     if (!response.ok) {
-      console.error('❌ [OnlySocial Sync] API request failed:', response.status, response.statusText);
-      throw new Error(`OnlySocial API error: ${response.status}`);
+      console.error('❌ [OnlySocial Sync] Lambda API request failed:', response.status, response.statusText);
+      throw new Error(`Lambda API error: ${response.status}`);
     }
 
-    const data: OnlySocialAPIResponse = await response.json();
-    console.log(`✅ [OnlySocial Sync] Received ${data.data?.length || 0} accounts from API`);
+    const data = await response.json();
+    
+    if (!data.success) {
+      throw new Error(data.error || 'Lambda returned error');
+    }
+    
+    console.log(`✅ [OnlySocial Sync] Received ${data.accounts?.length || 0} accounts from Lambda`);
 
-    return data.data || [];
+    return data.accounts || [];
   } catch (error) {
     clearTimeout(timeoutId);
     
     if ((error as Error).name === 'AbortError') {
-      console.error('❌ [OnlySocial Sync] API request timeout');
-      throw new Error('OnlySocial API timeout');
+      console.error('❌ [OnlySocial Sync] Lambda request timeout');
+      throw new Error('Lambda API timeout');
     }
     
     throw error;

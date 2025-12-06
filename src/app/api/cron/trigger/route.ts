@@ -1,237 +1,106 @@
 /**
  * API Route: POST /api/cron/trigger
- * Endpoint chiamato dal cron job esterno ogni 50 minuti
+ * Endpoint chiamato dal cron job esterno ogni 60 minuti
  * 
- * Questo endpoint riceve il segnale dal cron job e coordina tutte le azioni automatiche:
- * - Controllo post da pubblicare nelle prossime 60 minuti
- * - Upload video su OnlySocial
- * - Schedulazione contenuti
+ * Questo endpoint funziona come PROXY verso Lambda per mantenere
+ * l'isolamento completo tra Vercel e OnlySocial.
+ * 
+ * Tutte le operazioni OnlySocial (upload, creazione post, schedulazione)
+ * vengono eseguite da Lambda, non da Vercel.
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getScheduledPostsForUpload, updateScheduledPostStatus } from '@/lib/db/neon'
-import { uploadVideoToOnlySocial, createOnlySocialPost, scheduleOnlySocialPost } from '@/lib/onlysocial'
-import { PostStatus } from '@prisma/client'
 
 // Secret per autenticare le chiamate dal cron job
 const CRON_SECRET = process.env.CRON_SECRET
-
-interface CronAction {
-  name: string
-  status: 'completed' | 'failed' | 'skipped'
-  message?: string
-  details?: unknown
-}
+const LAMBDA_API_URL = process.env.LAMBDA_API_URL
 
 export async function POST(request: NextRequest) {
   const startTime = Date.now()
   
   try {
-    console.log('🔔 ========================================')
-    console.log('🔔 CRON JOB TRIGGERED!')
-    console.log('🔔 Timestamp:', new Date().toISOString())
-    console.log('🔔 ========================================')
+    console.log('CRON JOB TRIGGERED - FORWARDING TO LAMBDA')
+    console.log('Timestamp:', new Date().toISOString())
 
     // Verifica il secret per sicurezza
     const authHeader = request.headers.get('authorization')
     const providedSecret = authHeader?.replace('Bearer ', '')
 
     if (!CRON_SECRET) {
-      console.error('❌ CRON_SECRET non configurato nelle variabili d\'ambiente')
+      console.error('CRON_SECRET non configurato')
       return NextResponse.json(
-        { error: 'Server configuration error' },
+        { error: 'Server configuration error: CRON_SECRET not set' },
         { status: 500 }
       )
     }
 
     if (providedSecret !== CRON_SECRET) {
-      console.error('❌ Invalid cron secret')
+      console.error('Invalid cron secret')
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
       )
     }
 
-    // ✅ Autenticazione OK - Esegui le azioni
-    console.log('✅ Cron job autenticato correttamente')
-    console.log('📋 Inizio esecuzione azioni programmate...')
-
-    const actions: CronAction[] = []
-    
-    // AZIONE 1: Calcola finestra temporale
-    // IMPORTANTE: Il database contiene date in formato italiano (UTC+1)
-    // Quindi dobbiamo aggiungere 1 ora a "now" per allinearlo al database
-    const nowUTC = new Date()
-    const nowItalian = new Date(nowUTC.getTime() + (60 * 60 * 1000)) // +1 ora per timezone italiano
-    
-    const startWindow = new Date(nowItalian.getTime() - 10 * 60 * 1000) // now - 10 minuti
-    const endWindow = new Date(nowItalian.getTime() + 60 * 60 * 1000) // now + 60 minuti
-    
-    console.log('⏰ Finestra temporale (ora italiana):')
-    console.log(`   Now UTC: ${nowUTC.toISOString()}`)
-    console.log(`   Now Italian: ${nowItalian.toISOString()}`)
-    console.log(`   Da: ${startWindow.toISOString()} (now - 10min)`)
-    console.log(`   A: ${endWindow.toISOString()} (now + 60min)`)
-
-    // AZIONE 2: Recupera post da processare
-    console.log('📝 Azione: Recupero post schedulati da processare...')
-    let postsToProcess
-    
-    try {
-      postsToProcess = await getScheduledPostsForUpload(startWindow, endWindow)
-      console.log(`✅ Trovati ${postsToProcess.length} post da processare`)
-      
-      actions.push({
-        name: 'fetch_scheduled_posts',
-        status: 'completed',
-        message: `Trovati ${postsToProcess.length} post`,
-        details: { count: postsToProcess.length }
-      })
-    } catch (error) {
-      console.error('❌ Errore recupero post:', error)
-      actions.push({
-        name: 'fetch_scheduled_posts',
-        status: 'failed',
-        message: error instanceof Error ? error.message : 'Unknown error'
-      })
-      throw error
+    if (!LAMBDA_API_URL) {
+      console.error('LAMBDA_API_URL non configurato')
+      return NextResponse.json(
+        { error: 'Server configuration error: LAMBDA_API_URL not set' },
+        { status: 500 }
+      )
     }
 
-    // AZIONE 3: Processa ogni post
-    const results = {
-      success: 0,
-      failed: 0,
-      skipped: 0,
-      details: [] as Array<{postId: string, status: string, error?: string}>
-    }
+    console.log('Cron job autenticato, forwarding to Lambda...')
+    console.log('URL:', LAMBDA_API_URL)
 
-    for (const post of postsToProcess) {
-      console.log(`\n🎬 Processando post ID: ${post.id}`)
-      console.log(`   Video: ${post.videoFilenames?.[0] || 'N/A'}`)
-      console.log(`   Account: ${post.accountUuid}`)
-      console.log(`   Scheduled for: ${post.scheduledFor}`)
-      
-      try {
-        // Valida dati necessari
-        if (!post.accountUuid || !post.accountId) {
-          throw new Error('Account UUID o ID mancante')
-        }
-
-        if (!post.videoUrls || post.videoUrls.length === 0) {
-          throw new Error('Video URL mancante')
-        }
-
-        // Step 1: Upload video su OnlySocial
-        console.log('📤 Step 1: Upload video su OnlySocial...')
-        const uploadResult = await uploadVideoToOnlySocial({
-          videoUrl: post.videoUrls[0],
-          filename: post.videoFilenames?.[0] || 'video.mp4'
-        })
-        
-        console.log(`✅ Video caricato - Media ID: ${uploadResult.id}`)
-        
-        // Step 2: Crea post su OnlySocial
-        console.log('📝 Step 2: Creazione post su OnlySocial...')
-        const createResult = await createOnlySocialPost({
-          accountId: post.accountId,
-          mediaId: parseInt(uploadResult.id), // Converte a integer
-          caption: post.caption || '',
-          postType: post.postType,
-          scheduledFor: post.scheduledFor
-        })
-        
-        console.log(`✅ Post creato - UUID: ${createResult.uuid}`)
-        
-        // Step 3: Schedula post
-        console.log('⏰ Step 3: Schedulazione post...')
-        const scheduleResult = await scheduleOnlySocialPost({
-          postUuid: createResult.uuid
-        })
-        
-        console.log(`✅ Post schedulato per: ${scheduleResult.scheduled_at}`)
-        
-        // Step 4: Aggiorna database
-        console.log('💾 Step 4: Aggiornamento database...')
-        await updateScheduledPostStatus(post.id, {
-          status: PostStatus.SCHEDULED,
-          onlySocialMediaIds: [parseInt(uploadResult.id)],
-          onlySocialPostUuid: createResult.uuid,
-          onlySocialMediaUrl: uploadResult.url
-        })
-        
-        console.log(`✅ Database aggiornato - Status: SCHEDULED`)
-        
-        results.success++
-        results.details.push({
-          postId: post.id,
-          status: 'success'
-        })
-        
-        console.log(`✅ Post ${post.id} processato con successo!`)
-        
-      } catch (error) {
-        console.error(`❌ Errore processando post ${post.id}:`, error)
-        
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-        
-        // Aggiorna database con errore
-        try {
-          await updateScheduledPostStatus(post.id, {
-            status: PostStatus.FAILED,
-            errorMessage: errorMessage
-          })
-          console.log(`💾 Database aggiornato - Status: FAILED`)
-        } catch (updateError) {
-          console.error(`❌ Errore aggiornamento database:`, updateError)
-        }
-        
-        results.failed++
-        results.details.push({
-          postId: post.id,
-          status: 'failed',
-          error: errorMessage
-        })
-      }
-    }
-
-    actions.push({
-      name: 'process_posts',
-      status: results.failed > 0 ? 'failed' : 'completed',
-      message: `Success: ${results.success}, Failed: ${results.failed}`,
-      details: results
+    // Forward the request to Lambda
+    const lambdaResponse = await fetch(LAMBDA_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        action: 'schedule'
+      }),
     })
 
+    const lambdaData = await lambdaResponse.json()
     const executionTime = Date.now() - startTime
-    console.log('\n✅ Esecuzione cron job completata')
-    console.log(`⏱️  Tempo di esecuzione: ${executionTime}ms`)
-    console.log(`📊 Risultati: ${results.success} successi, ${results.failed} errori`)
-    console.log('🔔 ========================================')
+
+    if (!lambdaResponse.ok) {
+      console.error('Lambda returned error:', lambdaData)
+      return NextResponse.json(
+        {
+          success: false,
+          error: lambdaData.error || 'Lambda execution failed',
+          lambdaStatus: lambdaResponse.status,
+          executionTime: executionTime + 'ms'
+        },
+        { status: lambdaResponse.status }
+      )
+    }
+
+    console.log('Lambda execution completed successfully')
+    console.log('Tempo di esecuzione:', executionTime + 'ms')
 
     return NextResponse.json({
       success: true,
-      message: 'Cron job executed successfully',
+      message: 'Cron job executed via Lambda',
       timestamp: new Date().toISOString(),
-      executionTime: `${executionTime}ms`,
-      summary: {
-        postsFound: postsToProcess.length,
-        postsSuccess: results.success,
-        postsFailed: results.failed
-      },
-      actions,
-      details: results.details
+      executionTime: executionTime + 'ms',
+      lambdaResponse: lambdaData
     })
 
   } catch (error) {
     const executionTime = Date.now() - startTime
-    console.error('❌ Errore durante esecuzione cron job:', error)
-    console.log(`⏱️  Tempo di esecuzione: ${executionTime}ms`)
-    console.log('🔔 ========================================')
+    console.error('Errore durante forward a Lambda:', error)
     
     return NextResponse.json(
       { 
-        error: 'Internal server error',
+        success: false,
+        error: 'Failed to forward request to Lambda',
         message: error instanceof Error ? error.message : 'Unknown error',
-        executionTime: `${executionTime}ms`
+        executionTime: executionTime + 'ms'
       },
       { status: 500 }
     )
@@ -247,12 +116,13 @@ export async function GET(request: NextRequest) {
     )
   }
 
-  console.log('🧪 TEST CRON JOB (GET request)')
+  console.log('TEST CRON JOB (GET request)')
   
   return NextResponse.json({
-    message: 'Cron endpoint is ready',
+    message: 'Cron endpoint is ready (Lambda proxy mode)',
     environment: process.env.NODE_ENV,
+    lambdaUrl: LAMBDA_API_URL ? 'configured' : 'NOT CONFIGURED',
     note: 'Use POST with Authorization header in production',
-    testUrl: `${request.nextUrl.origin}/api/cron/trigger`
+    testUrl: request.nextUrl.origin + '/api/cron/trigger'
   })
 }
