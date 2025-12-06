@@ -114,13 +114,13 @@ async function _uploadVideoToOnlySocial({
  * Crea post su OnlySocial
  */
 async function _createOnlySocialPost({
-  accountId,
+  accountUuid,
   mediaId,
   caption,
   postType,
   scheduledFor
 }: {
-  accountId: number;
+  accountUuid: string;
   mediaId: number;
   caption: string;
   postType: string;
@@ -131,11 +131,11 @@ async function _createOnlySocialPost({
   const timeString = scheduledFor.toTimeString().split(' ')[0];
   const time = timeString.split(':').slice(0, 2).join(':'); // "14:30"
   
-  console.log(`📝 [OnlySocial] Creating post for account ${accountId}`);
+  console.log(`📝 [OnlySocial] Creating post for account ${accountUuid}`);
   console.log(`   Date: ${date}, Time: ${time}, Media ID: ${mediaId}`);
   
   const payload = {
-    accounts: [accountId],
+    accounts: [accountUuid],
     versions: [{
       account_id: 0,
       is_original: true,

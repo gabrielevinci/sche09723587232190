@@ -18,9 +18,25 @@ exports.onlySocialLimiter = new bottleneck_1.default({
     reservoirRefreshAmount: 25,
     reservoirRefreshInterval: 60 * 1000, // Ricarica ogni 60 secondi
 });
-// Log semplice per errori (no TypeScript issues)
-exports.onlySocialLimiter.on('failed', async () => {
-    console.error(`🔴 [Rate Limiter] Request failed, retrying in 5s...`);
+// Traccia i retry per job
+const retryCount = new Map();
+const MAX_RETRIES = 3;
+// Log errori con dettagli e limite retry
+exports.onlySocialLimiter.on('failed', async (error, jobInfo) => {
+    const jobId = jobInfo.options.id || 'unknown';
+    const currentRetries = (retryCount.get(jobId) || 0) + 1;
+    retryCount.set(jobId, currentRetries);
+    console.error(`🔴 [Rate Limiter] Request failed (attempt ${currentRetries}/${MAX_RETRIES})`);
+    console.error(`   Error: ${error?.message || error}`);
+    if (currentRetries >= MAX_RETRIES) {
+        console.error(`❌ [Rate Limiter] Max retries reached, giving up`);
+        retryCount.delete(jobId);
+        return null; // Non ritentare
+    }
     return 5000; // Retry dopo 5 secondi
+});
+exports.onlySocialLimiter.on('done', (jobInfo) => {
+    const jobId = jobInfo.options.id || 'unknown';
+    retryCount.delete(jobId);
 });
 exports.default = exports.onlySocialLimiter;
