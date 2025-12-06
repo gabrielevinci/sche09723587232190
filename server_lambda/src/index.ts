@@ -194,7 +194,12 @@ async function handleCheckAccounts(): Promise<LambdaResult> {
 async function handleScheduleCronJob(): Promise<LambdaResult> {
   console.log('⏰ [Lambda] Processing scheduled videos...');
   
-  const now = new Date();
+  // IMPORTANTE: Il database salva le date in ora italiana (Europe/Rome, UTC+1)
+  // Lambda gira in UTC, quindi dobbiamo aggiungere 1 ora per allinearci
+  const nowUTC = new Date();
+  const italianOffset = 60 * 60 * 1000; // +1 ora
+  const now = new Date(nowUTC.getTime() + italianOffset); // "now" in ora italiana
+  
   const oneHourAgo = new Date(now.getTime() - (60 * 60 * 1000));
   const oneHourFromNow = new Date(now.getTime() + (60 * 60 * 1000));
   
