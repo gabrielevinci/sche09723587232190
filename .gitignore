@@ -43,10 +43,10 @@ next-env.d.ts
 # prisma
 prisma/.env
 
-# server lambda (AWS Lambda separato)
-/server_lambda
+# server lambda (AWS Lambda separato - NON ignorare i file sorgente)
 server_lambda/node_modules
 server_lambda/.env
 server_lambda/dist
+server_lambda/*.zip
 server_lambda/*.zip
 server_lambda/.aws-sam
