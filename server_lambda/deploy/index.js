@@ -29,8 +29,12 @@ const handler = async (event) => {
     try {
         // Parsing del body
         const body = event.body ? JSON.parse(event.body) : {};
-        const action = body.action || event.queryStringParameters?.action || 'schedule';
-        console.log(`📋 [Lambda] Action: ${action}`);
+        // Rileva se la chiamata viene da cron-job.org (usa sempre 'schedule')
+        const userAgent = event.headers?.['user-agent'] || '';
+        const isCronJob = userAgent.includes('cron-job.org');
+        // Se viene da cron-job.org, forza action='schedule' indipendentemente dal body
+        const action = isCronJob ? 'schedule' : (body.action || event.queryStringParameters?.action || 'schedule');
+        console.log(`📋 [Lambda] Action: ${action}${isCronJob ? ' (forced by cron-job.org)' : ''}`);
         let result;
         switch (action) {
             case 'schedule':
