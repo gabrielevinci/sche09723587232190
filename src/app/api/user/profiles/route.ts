@@ -31,8 +31,7 @@ export async function GET() {
     // STEP 1: Verifica e aggiorna lo stato degli account OnlySocial
     console.log('🔍 [Profiles API] Checking OnlySocial accounts status...')
     try {
-      // TODO: Rimuovere forceCheck=true dopo aver verificato l'isolamento Lambda
-      const syncResult = await checkAndUpdateAccountsStatus(user.id, true) // TEMP: force check per test
+      const syncResult = await checkAndUpdateAccountsStatus(user.id, false)
       console.log('✅ [Profiles API] Sync completed:', syncResult)
       
       if (syncResult.errors.length > 0) {
