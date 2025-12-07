@@ -226,12 +226,12 @@ async function handleScheduleCronJob() {
                 if (!socialAccount.isActive) {
                     throw new Error(`Account ${socialAccount.accountName} is not active`);
                 }
-                // Usa accountUuid - OnlySocial richiede l'UUID dell'account, non l'ID numerico
-                const accountUuid = video.accountUuid || socialAccount.accountUuid || socialAccount.accountId;
-                if (!accountUuid) {
-                    throw new Error(`Invalid accountUuid: missing for account ${socialAccount.accountName}`);
+                // Usa accountId numerico - OnlySocial richiede l'ID intero nell'API, non l'UUID
+                const accountId = parseInt(socialAccount.accountId);
+                if (isNaN(accountId)) {
+                    throw new Error(`Invalid accountId: not a number for account ${socialAccount.accountName} (value: ${socialAccount.accountId})`);
                 }
-                console.log(`   Account UUID: ${accountUuid}`);
+                console.log(`   Account ID: ${accountId}`);
                 // Verifica che ci siano video da caricare
                 if (!video.videoUrls || video.videoUrls.length === 0) {
                     throw new Error(`No videos to upload for post ${video.id}`);
@@ -253,7 +253,7 @@ async function handleScheduleCronJob() {
                 // Step 2: Crea post
                 console.log(`   2/3 Creating post...`);
                 const postResult = await (0, onlysocial_client_1.createOnlySocialPost)({
-                    accountUuid: accountUuid,
+                    accountId: accountId,
                     mediaId: mediaId,
                     caption: video.caption,
                     postType: video.postType,

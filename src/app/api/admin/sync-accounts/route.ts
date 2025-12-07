@@ -90,28 +90,46 @@ export async function POST() {
     }
 
     // Sincronizza gli account nel database
+    // IMPORTANTE: accountId = ID numerico OnlySocial (richiesto per API create post)
+    //             accountUuid = UUID OnlySocial (per riferimento)
     let syncedCount = 0
     for (const account of accounts) {
       try {
-        await prisma.socialAccount.upsert({
-          where: { accountId: account.uuid },
-          update: {
-            platform: account.provider.toLowerCase(),
-            accountName: account.name || account.username,
-            accountUuid: account.uuid,  // Aggiorna anche l'UUID
-            isActive: true,
-            updatedAt: new Date(),
-          },
-          create: {
-            platform: account.provider.toLowerCase(),
-            accountName: account.name || account.username,
-            accountId: account.uuid,
-            accountUuid: account.uuid,  // Salva l'UUID
-            isActive: true,
-          },
+        // Usa l'UUID per cercare account esistenti, ma salva l'ID numerico
+        const numericId = String(account.id) // ID numerico come stringa
+        
+        // Prima cerca se esiste già un account con questo UUID
+        const existing = await prisma.socialAccount.findFirst({
+          where: { accountUuid: account.uuid }
         })
+        
+        if (existing) {
+          // Aggiorna account esistente
+          await prisma.socialAccount.update({
+            where: { id: existing.id },
+            data: {
+              platform: account.provider.toLowerCase(),
+              accountName: account.name || account.username,
+              accountId: numericId,  // ID numerico OnlySocial
+              accountUuid: account.uuid,
+              isActive: true,
+              updatedAt: new Date(),
+            },
+          })
+        } else {
+          // Crea nuovo account
+          await prisma.socialAccount.create({
+            data: {
+              platform: account.provider.toLowerCase(),
+              accountName: account.name || account.username,
+              accountId: numericId,  // ID numerico OnlySocial
+              accountUuid: account.uuid,
+              isActive: true,
+            },
+          })
+        }
         syncedCount++
-        console.log(`  ✓ Sincronizzato: ${account.name} (${account.provider})`)
+        console.log(`  ✓ Sincronizzato: ${account.name} (${account.provider}) - ID: ${numericId}`)
       } catch (error) {
         console.error(`  ✗ Errore sincronizzazione account ${account.uuid}:`, error)
       }

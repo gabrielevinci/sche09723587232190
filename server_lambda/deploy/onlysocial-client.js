@@ -60,17 +60,17 @@ async function _uploadVideoToOnlySocial({ videoUrl, filename }) {
 /**
  * Crea post su OnlySocial
  */
-async function _createOnlySocialPost({ accountUuid, mediaId, caption, postType, scheduledFor }) {
+async function _createOnlySocialPost({ accountId, mediaId, caption, postType, scheduledFor }) {
     // Formato data/ora per OnlySocial
     const date = scheduledFor.toISOString().split('T')[0]; // "2025-12-06"
     const timeString = scheduledFor.toTimeString().split(' ')[0];
     const time = timeString.split(':').slice(0, 2).join(':'); // "14:30"
-    console.log(`📝 [OnlySocial] Creating post for account ${accountUuid}`);
+    console.log(`📝 [OnlySocial] Creating post for account ID ${accountId}`);
     console.log(`   Date: ${date}, Time: ${time}, Media ID: ${mediaId}`);
     const payload = {
-        accounts: [accountUuid],
+        accounts: [accountId], // ✅ FIX: Account ID deve essere nell'array
         versions: [{
-                account_id: 0,
+                account_id: 0, // ✅ FIX: 0 = usa il primo account dall'array
                 is_original: true,
                 content: [{
                         body: caption,
