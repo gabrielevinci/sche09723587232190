@@ -161,18 +161,15 @@ async function handleCheckAccounts() {
  */
 async function handleScheduleCronJob() {
     console.log('⏰ [Lambda] Processing scheduled videos...');
-    // IMPORTANTE: Il database salva le date in ora italiana (Europe/Rome, UTC+1)
+    // IMPORTANTE: Il database salva le date in ora italiana (Europe/Rome)
     // Lambda gira in UTC, quindi usiamo l'ora UTC per le query
     // (il database confronta automaticamente con le date salvate in italiano)
     const nowUTC = new Date();
-    // Finestra temporale:
+    // Finestra temporale in UTC:
     // - Recovery: 360 minuti indietro (6 ore) per recuperare post mancati
     // - Upcoming: 65 minuti avanti per processare i prossimi post
     const sixHoursAgo = new Date(nowUTC.getTime() - (360 * 60 * 1000)); // -6h
     const sixtyFiveMinutesFromNow = new Date(nowUTC.getTime() + (65 * 60 * 1000)); // +65min
-    // Per i log, convertiamo in ora italiana per leggibilità
-    const italianOffset = 60 * 60 * 1000; // +1 ora
-    const nowItalian = new Date(nowUTC.getTime() + italianOffset);
     const results = {
         processed: 0,
         successful: 0,
@@ -182,11 +179,11 @@ async function handleScheduleCronJob() {
         errors: []
     };
     try {
-        console.log(`🔍 [Lambda] Time window (UTC):`);
+        console.log(`🔍 [Lambda] Time window:`);
         console.log(`   UTC now: ${nowUTC.toISOString()}`);
-        console.log(`   Italian now: ${(0, date_fns_tz_1.formatInTimeZone)(nowItalian, TIMEZONE, 'yyyy-MM-dd HH:mm:ss')}`);
-        console.log(`   Recovery (-6h): ${(0, date_fns_tz_1.formatInTimeZone)(sixHoursAgo, TIMEZONE, 'yyyy-MM-dd HH:mm')} to ${(0, date_fns_tz_1.formatInTimeZone)(nowItalian, TIMEZONE, 'yyyy-MM-dd HH:mm')}`);
-        console.log(`   Upcoming (+65min): ${(0, date_fns_tz_1.formatInTimeZone)(nowItalian, TIMEZONE, 'yyyy-MM-dd HH:mm')} to ${(0, date_fns_tz_1.formatInTimeZone)(sixtyFiveMinutesFromNow, TIMEZONE, 'yyyy-MM-dd HH:mm')}`);
+        console.log(`   Italian now: ${(0, date_fns_tz_1.formatInTimeZone)(nowUTC, TIMEZONE, 'yyyy-MM-dd HH:mm:ss')}`);
+        console.log(`   Recovery (-6h): ${(0, date_fns_tz_1.formatInTimeZone)(sixHoursAgo, TIMEZONE, 'HH:mm')} to ${(0, date_fns_tz_1.formatInTimeZone)(nowUTC, TIMEZONE, 'HH:mm')} (ora italiana)`);
+        console.log(`   Upcoming (+65min): ${(0, date_fns_tz_1.formatInTimeZone)(nowUTC, TIMEZONE, 'HH:mm')} to ${(0, date_fns_tz_1.formatInTimeZone)(sixtyFiveMinutesFromNow, TIMEZONE, 'HH:mm')} (ora italiana)`);
         // Query: post PENDING nella finestra -360' → +65'
         const videosToSchedule = await prisma_client_1.prisma.scheduledPost.findMany({
             where: {
