@@ -165,9 +165,11 @@ async function handleScheduleCronJob() {
     // Lambda gira in UTC, quindi usiamo l'ora UTC per le query
     // (il database confronta automaticamente con le date salvate in italiano)
     const nowUTC = new Date();
-    // Finestra temporale: da 1 ora fa a 1 ora nel futuro
-    const oneHourAgo = new Date(nowUTC.getTime() - (60 * 60 * 1000));
-    const oneHourFromNow = new Date(nowUTC.getTime() + (60 * 60 * 1000));
+    // Finestra temporale:
+    // - Recovery: 360 minuti indietro (6 ore) per recuperare post mancati
+    // - Upcoming: 65 minuti avanti per processare i prossimi post
+    const sixHoursAgo = new Date(nowUTC.getTime() - (360 * 60 * 1000)); // -6h
+    const sixtyFiveMinutesFromNow = new Date(nowUTC.getTime() + (65 * 60 * 1000)); // +65min
     // Per i log, convertiamo in ora italiana per leggibilità
     const italianOffset = 60 * 60 * 1000; // +1 ora
     const nowItalian = new Date(nowUTC.getTime() + italianOffset);
@@ -183,15 +185,15 @@ async function handleScheduleCronJob() {
         console.log(`🔍 [Lambda] Time window (UTC):`);
         console.log(`   UTC now: ${nowUTC.toISOString()}`);
         console.log(`   Italian now: ${(0, date_fns_tz_1.formatInTimeZone)(nowItalian, TIMEZONE, 'yyyy-MM-dd HH:mm:ss')}`);
-        console.log(`   Recovery (now-60'): ${(0, date_fns_tz_1.formatInTimeZone)(oneHourAgo, TIMEZONE, 'yyyy-MM-dd HH:mm')} to ${(0, date_fns_tz_1.formatInTimeZone)(nowItalian, TIMEZONE, 'yyyy-MM-dd HH:mm')}`);
-        console.log(`   Upcoming (now+60'): ${(0, date_fns_tz_1.formatInTimeZone)(nowItalian, TIMEZONE, 'yyyy-MM-dd HH:mm')} to ${(0, date_fns_tz_1.formatInTimeZone)(oneHourFromNow, TIMEZONE, 'yyyy-MM-dd HH:mm')}`);
-        // Query: post PENDING nella finestra -60' → +60'
+        console.log(`   Recovery (-6h): ${(0, date_fns_tz_1.formatInTimeZone)(sixHoursAgo, TIMEZONE, 'yyyy-MM-dd HH:mm')} to ${(0, date_fns_tz_1.formatInTimeZone)(nowItalian, TIMEZONE, 'yyyy-MM-dd HH:mm')}`);
+        console.log(`   Upcoming (+65min): ${(0, date_fns_tz_1.formatInTimeZone)(nowItalian, TIMEZONE, 'yyyy-MM-dd HH:mm')} to ${(0, date_fns_tz_1.formatInTimeZone)(sixtyFiveMinutesFromNow, TIMEZONE, 'yyyy-MM-dd HH:mm')}`);
+        // Query: post PENDING nella finestra -360' → +65'
         const videosToSchedule = await prisma_client_1.prisma.scheduledPost.findMany({
             where: {
                 status: 'PENDING',
                 scheduledFor: {
-                    gte: oneHourAgo, // Da 1 ora fa (recupero mancati)
-                    lte: oneHourFromNow // Fino a 1 ora nel futuro (prossima schedulazione)
+                    gte: sixHoursAgo, // Da 6 ore fa (recupero mancati)
+                    lte: sixtyFiveMinutesFromNow // Fino a 65 min nel futuro (prossimi post)
                 }
             },
             orderBy: {
@@ -215,10 +217,8 @@ async function handleScheduleCronJob() {
             // Determina se il post è scaduto (scheduledFor < nowUTC) o futuro
             const isOverdue = video.scheduledFor < nowUTC;
             try {
-                console.log(`\n📹 [Lambda] Processing video ${results.processed}/${videosToSchedule.length}`);
-                console.log(`   ID: ${video.id}`);
-                console.log(`   Scheduled: ${(0, date_fns_tz_1.formatInTimeZone)(video.scheduledFor, TIMEZONE, 'yyyy-MM-dd HH:mm')}`);
-                console.log(`   Type: ${isOverdue ? '⚠️ OVERDUE (will publish now)' : '📅 UPCOMING (will schedule)'}`);
+                // Log compatto per velocità
+                console.log(`📹 [${results.processed}/${videosToSchedule.length}] ${video.id} - ${isOverdue ? 'NOW' : 'SCHEDULE'} ${(0, date_fns_tz_1.formatInTimeZone)(video.scheduledFor, TIMEZONE, 'HH:mm')}`);
                 // Recupera SocialAccount separatamente
                 const socialAccount = await prisma_client_1.prisma.socialAccount.findUnique({
                     where: { id: video.socialAccountId }
@@ -226,7 +226,6 @@ async function handleScheduleCronJob() {
                 if (!socialAccount) {
                     throw new Error(`SocialAccount not found: ${video.socialAccountId}`);
                 }
-                console.log(`   Account: ${socialAccount.accountName} (${socialAccount.platform})`);
                 // Verifica che l'account sia attivo
                 if (!socialAccount.isActive) {
                     throw new Error(`Account ${socialAccount.accountName} is not active`);
@@ -236,7 +235,6 @@ async function handleScheduleCronJob() {
                 if (isNaN(accountId)) {
                     throw new Error(`Invalid accountId: not a number for account ${socialAccount.accountName} (value: ${socialAccount.accountId})`);
                 }
-                console.log(`   Account ID: ${accountId}`);
                 // Verifica che ci siano video da caricare
                 if (!video.videoUrls || video.videoUrls.length === 0) {
                     throw new Error(`No videos to upload for post ${video.id}`);
@@ -244,9 +242,7 @@ async function handleScheduleCronJob() {
                 // Per ora gestiamo solo il primo video (multi-video in futuro)
                 const videoUrl = video.videoUrls[0];
                 const videoFilename = video.videoFilenames[0] || `video-${video.id}.mp4`;
-                console.log(`   Video URL: ${videoUrl}`);
                 // Step 1: Upload video a OnlySocial
-                console.log(`   1/3 Uploading video...`);
                 const uploadResult = await (0, onlysocial_client_1.uploadVideoToOnlySocial)({
                     videoUrl: videoUrl,
                     filename: videoFilename
@@ -256,7 +252,6 @@ async function handleScheduleCronJob() {
                     throw new Error(`Invalid media ID from OnlySocial: ${uploadResult.id}`);
                 }
                 // Step 2: Crea post
-                console.log(`   2/3 Creating post...`);
                 const postResult = await (0, onlysocial_client_1.createOnlySocialPost)({
                     accountId: accountId,
                     mediaId: mediaId,
@@ -265,7 +260,6 @@ async function handleScheduleCronJob() {
                     scheduledFor: video.scheduledFor
                 });
                 // Step 3: Schedula post (o pubblica subito se scaduto)
-                console.log(`   3/3 ${isOverdue ? 'Publishing now...' : 'Scheduling post...'}`);
                 await (0, onlysocial_client_1.scheduleOnlySocialPost)({
                     postUuid: postResult.uuid,
                     postNow: isOverdue // true = pubblica subito, false = schedula per data prevista
@@ -286,18 +280,17 @@ async function handleScheduleCronJob() {
                 results.successful++;
                 if (isOverdue) {
                     results.publishedNow++;
-                    console.log(`✅ [Lambda] Video ${video.id} published NOW (recovery)`);
                 }
                 else {
                     results.scheduled++;
-                    console.log(`✅ [Lambda] Video ${video.id} scheduled for ${(0, date_fns_tz_1.formatInTimeZone)(video.scheduledFor, TIMEZONE, 'yyyy-MM-dd HH:mm')}`);
                 }
+                console.log(`✅ ${video.id} → ${finalStatus}`);
             }
             catch (error) {
                 results.failed++;
                 const errorMsg = error instanceof Error ? error.message : 'Unknown error';
                 results.errors.push(`Video ${video.id}: ${errorMsg}`);
-                console.error(`❌ [Lambda] Failed to ${isOverdue ? 'publish' : 'schedule'} video ${video.id}:`, errorMsg);
+                console.error(`❌ ${video.id} FAILED: ${errorMsg}`);
                 // Aggiorna database: FAILED
                 await prisma_client_1.prisma.scheduledPost.update({
                     where: { id: video.id },
@@ -312,19 +305,16 @@ async function handleScheduleCronJob() {
                 });
             }
         }
-        // Risultato finale
-        console.log(`\n📊 [Lambda] Processing complete:`);
-        console.log(`   Total processed: ${results.processed}`);
-        console.log(`   Scheduled for future: ${results.scheduled}`);
-        console.log(`   Published now (recovery): ${results.publishedNow}`);
-        console.log(`   Failed: ${results.failed}`);
+        // Risultato finale - Log completo solo in sviluppo
+        console.log(`\n📊 [Lambda] Complete: ${results.processed} processed, ${results.scheduled} scheduled, ${results.publishedNow} now, ${results.failed} failed`);
+        // Output MINIMO per cron-job.org (max 64KB, ideale <1KB)
+        // cron-job.org attende max 30 secondi e legge max 64KB
+        const shortResponse = results.failed > 0
+            ? `PARTIAL: ${results.successful}/${results.processed} OK, ${results.failed} failed`
+            : `OK: ${results.processed} processed`;
         return {
             statusCode: 200,
-            body: JSON.stringify({
-                success: true,
-                results: results,
-                timestamp: new Date().toISOString()
-            })
+            body: shortResponse // Response testuale minima, non JSON
         };
     }
     catch (error) {
