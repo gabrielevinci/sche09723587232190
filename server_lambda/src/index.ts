@@ -195,13 +195,17 @@ async function handleScheduleCronJob(): Promise<LambdaResult> {
   console.log('⏰ [Lambda] Processing scheduled videos...');
   
   // IMPORTANTE: Il database salva le date in ora italiana (Europe/Rome, UTC+1)
-  // Lambda gira in UTC, quindi dobbiamo aggiungere 1 ora per allinearci
+  // Lambda gira in UTC, quindi usiamo l'ora UTC per le query
+  // (il database confronta automaticamente con le date salvate in italiano)
   const nowUTC = new Date();
-  const italianOffset = 60 * 60 * 1000; // +1 ora
-  const now = new Date(nowUTC.getTime() + italianOffset); // "now" in ora italiana
   
-  const oneHourAgo = new Date(now.getTime() - (60 * 60 * 1000));
-  const oneHourFromNow = new Date(now.getTime() + (60 * 60 * 1000));
+  // Finestra temporale: da 1 ora fa a 1 ora nel futuro
+  const oneHourAgo = new Date(nowUTC.getTime() - (60 * 60 * 1000));
+  const oneHourFromNow = new Date(nowUTC.getTime() + (60 * 60 * 1000));
+  
+  // Per i log, convertiamo in ora italiana per leggibilità
+  const italianOffset = 60 * 60 * 1000; // +1 ora
+  const nowItalian = new Date(nowUTC.getTime() + italianOffset);
   
   const results = {
     processed: 0,
@@ -213,9 +217,11 @@ async function handleScheduleCronJob(): Promise<LambdaResult> {
   };
   
   try {
-    console.log(`🔍 [Lambda] Time window:`);
-    console.log(`   Recovery (now-60'): ${formatInTimeZone(oneHourAgo, TIMEZONE, 'yyyy-MM-dd HH:mm')} to ${formatInTimeZone(now, TIMEZONE, 'yyyy-MM-dd HH:mm')}`);
-    console.log(`   Upcoming (now+60'): ${formatInTimeZone(now, TIMEZONE, 'yyyy-MM-dd HH:mm')} to ${formatInTimeZone(oneHourFromNow, TIMEZONE, 'yyyy-MM-dd HH:mm')}`);
+    console.log(`🔍 [Lambda] Time window (UTC):`);
+    console.log(`   UTC now: ${nowUTC.toISOString()}`);
+    console.log(`   Italian now: ${formatInTimeZone(nowItalian, TIMEZONE, 'yyyy-MM-dd HH:mm:ss')}`);
+    console.log(`   Recovery (now-60'): ${formatInTimeZone(oneHourAgo, TIMEZONE, 'yyyy-MM-dd HH:mm')} to ${formatInTimeZone(nowItalian, TIMEZONE, 'yyyy-MM-dd HH:mm')}`);
+    console.log(`   Upcoming (now+60'): ${formatInTimeZone(nowItalian, TIMEZONE, 'yyyy-MM-dd HH:mm')} to ${formatInTimeZone(oneHourFromNow, TIMEZONE, 'yyyy-MM-dd HH:mm')}`);
     
     // Query: post PENDING nella finestra -60' → +60'
     const videosToSchedule = await prisma.scheduledPost.findMany({
@@ -248,8 +254,8 @@ async function handleScheduleCronJob(): Promise<LambdaResult> {
     for (const video of videosToSchedule) {
       results.processed++;
       
-      // Determina se il post è scaduto (scheduledFor < now) o futuro
-      const isOverdue = video.scheduledFor < now;
+      // Determina se il post è scaduto (scheduledFor < nowUTC) o futuro
+      const isOverdue = video.scheduledFor < nowUTC;
       
       try {
         console.log(`\n📹 [Lambda] Processing video ${results.processed}/${videosToSchedule.length}`);
