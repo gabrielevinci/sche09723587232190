@@ -184,10 +184,12 @@ async function handleScheduleCronJob() {
         console.log(`   Italian now: ${(0, date_fns_tz_1.formatInTimeZone)(nowUTC, TIMEZONE, 'yyyy-MM-dd HH:mm:ss')}`);
         console.log(`   Recovery (-6h): ${(0, date_fns_tz_1.formatInTimeZone)(sixHoursAgo, TIMEZONE, 'HH:mm')} to ${(0, date_fns_tz_1.formatInTimeZone)(nowUTC, TIMEZONE, 'HH:mm')} (ora italiana)`);
         console.log(`   Upcoming (+65min): ${(0, date_fns_tz_1.formatInTimeZone)(nowUTC, TIMEZONE, 'HH:mm')} to ${(0, date_fns_tz_1.formatInTimeZone)(sixtyFiveMinutesFromNow, TIMEZONE, 'HH:mm')} (ora italiana)`);
-        // Query: post PENDING nella finestra -360' → +65'
+        // Query: post PENDING o FAILED nella finestra -360' → +65' (include retry dei falliti)
         const videosToSchedule = await prisma_client_1.prisma.scheduledPost.findMany({
             where: {
-                status: 'PENDING',
+                status: {
+                    in: ['PENDING', 'FAILED'] // Include anche i FAILED per retry (recovery)
+                },
                 scheduledFor: {
                     gte: sixHoursAgo, // Da 6 ore fa (recupero mancati)
                     lte: sixtyFiveMinutesFromNow // Fino a 65 min nel futuro (prossimi post)
