@@ -81,8 +81,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Parse la data mantenendo l'orario italiano
-    // La stringa arriva nel formato: "2025-12-13T13:00:00+01:00"
+    // Parse la data - PostgreSQL TIMESTAMP WITH TIME ZONE gestisce automaticamente le conversioni
+    // La stringa arriva nel formato: "2025-12-09T10:45:00+01:00" (ora italiana con offset)
+    // PostgreSQL la salva in UTC: "2025-12-09T09:45:00Z" (conversione automatica)
+    // Quando Lambda cerca in UTC, trova correttamente i post nella finestra oraria
     const scheduleDate = new Date(scheduledFor)
     if (isNaN(scheduleDate.getTime())) {
       return NextResponse.json(
@@ -90,21 +92,14 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
-
-    // IMPORTANTE: PostgreSQL converte in UTC quando salva, ma noi vogliamo mantenere l'orario italiano
-    // Quindi quando riceviamo "13:00+01:00", PostgreSQL lo converte in "12:00Z"
-    // Per compensare, aggiungiamo 1 ora alla data PRIMA di salvare
-    // Così PostgreSQL salverà "13:00Z" che è l'orario che vogliamo vedere
-    const scheduleDateAdjusted = new Date(scheduleDate.getTime() + (60 * 60 * 1000)) // +1 ora
     
-    console.log(`⏰ Date adjustment for Italian timezone:`)
+    console.log(`⏰ Scheduling post:`)
     console.log(`   Received: ${scheduledFor}`)
-    console.log(`   Parsed: ${scheduleDate.toISOString()}`)
-    console.log(`   Adjusted (+1h): ${scheduleDateAdjusted.toISOString()}`)
+    console.log(`   Will be saved in DB as UTC: ${scheduleDate.toISOString()}`)
 
     // Verifica che la data sia almeno 1 ora nel futuro
     const now = new Date()
-    const oneHourFromNow = new Date(now.getTime() + (60 * 60 * 1000)) // +1 ora da ora
+    const oneHourFromNow = new Date(now.getTime() + (60 * 60 * 1000))
     
     if (scheduleDate <= oneHourFromNow) {
       return NextResponse.json(
@@ -113,18 +108,18 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Salva nel database con la data aggiustata
+    // Salva nel database - PostgreSQL converte automaticamente in UTC
     const savedPost = await saveScheduledPost({
       userId: session.user.id,
       socialAccountId,
       accountUuid,
       accountId,
-      caption: caption || '', // Lascia vuoto se non fornita
+      caption: caption || '',
       postType: postType || 'reel',
       videoUrls,
       videoFilenames,
       videoSizes,
-      scheduledFor: scheduleDateAdjusted, // Usa la data aggiustata
+      scheduledFor: scheduleDate, // NO adjustment - PostgreSQL gestisce la conversione UTC
       timezone: timezone || 'Europe/Rome',
     })
 
