@@ -81,8 +81,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Parse la data mantenendo l'orario italiano
-    // La stringa arriva nel formato: "2025-12-13T13:00:00+01:00"
+    // Parse la data italiana con offset (es: "2025-12-13T13:00:00+01:00")
+    // PostgreSQL TIMESTAMP salva in UTC automaticamente
     const scheduleDate = new Date(scheduledFor)
     if (isNaN(scheduleDate.getTime())) {
       return NextResponse.json(
@@ -90,17 +90,10 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
-
-    // IMPORTANTE: PostgreSQL converte in UTC quando salva, ma noi vogliamo mantenere l'orario italiano
-    // Quindi quando riceviamo "13:00+01:00", PostgreSQL lo converte in "12:00Z"
-    // Per compensare, aggiungiamo 1 ora alla data PRIMA di salvare
-    // Così PostgreSQL salverà "13:00Z" che è l'orario che vogliamo vedere
-    const scheduleDateAdjusted = new Date(scheduleDate.getTime() + (60 * 60 * 1000)) // +1 ora
     
-    console.log(`⏰ Date adjustment for Italian timezone:`)
-    console.log(`   Received: ${scheduledFor}`)
-    console.log(`   Parsed: ${scheduleDate.toISOString()}`)
-    console.log(`   Adjusted (+1h): ${scheduleDateAdjusted.toISOString()}`)
+    console.log(`⏰ Scheduling post in Italian timezone:`)
+    console.log(`   Received (IT time): ${scheduledFor}`)
+    console.log(`   UTC equivalent: ${scheduleDate.toISOString()}`)
 
     // Verifica che la data sia almeno 1 ora nel futuro
     const now = new Date()
@@ -113,7 +106,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Salva nel database con la data aggiustata
+    // Salva nel database (PostgreSQL converte automaticamente in UTC)
     const savedPost = await saveScheduledPost({
       userId: session.user.id,
       socialAccountId,
@@ -124,7 +117,7 @@ export async function POST(request: NextRequest) {
       videoUrls,
       videoFilenames,
       videoSizes,
-      scheduledFor: scheduleDateAdjusted, // Usa la data aggiustata
+      scheduledFor: scheduleDate, // PostgreSQL salva in UTC
       timezone: timezone || 'Europe/Rome',
     })
 
