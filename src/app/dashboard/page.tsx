@@ -232,15 +232,26 @@ export default function DashboardPage() {
       const video = videosToSchedule.find(v => v.id === row.videoId)
       
       // Crea una stringa di data in formato ISO con orario italiano
-      // Formato: YYYY-MM-DDTHH:MM:SS+01:00 (sempre +01:00 per l'Italia)
+      // Formato: YYYY-MM-DDTHH:MM:SS in ora italiana (Europe/Rome)
       const year = row.year.toString().padStart(4, '0')
       const month = row.month.toString().padStart(2, '0')
       const day = row.day.toString().padStart(2, '0')
       const hour = row.hour.toString().padStart(2, '0')
       const minute = row.minute.toString().padStart(2, '0')
       
-      // Crea la stringa ISO con offset italiano esplicito
-      const scheduledForISO = `${year}-${month}-${day}T${hour}:${minute}:00+01:00`
+      // Crea la data come se fosse in Europe/Rome timezone
+      // Determina l'offset corretto (UTC+1 in inverno, UTC+2 in estate)
+      const testDate = new Date(`${year}-${month}-${day}T12:00:00Z`)
+      const formatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'Europe/Rome',
+        timeZoneName: 'short'
+      })
+      const parts = formatter.formatToParts(testDate)
+      const tzName = parts.find(p => p.type === 'timeZoneName')?.value || 'CET'
+      const offset = tzName.includes('CEST') ? '+02:00' : '+01:00' // CEST=estate, CET=inverno
+      
+      // Crea la stringa ISO con offset corretto per Europe/Rome
+      const scheduledForISO = `${year}-${month}-${day}T${hour}:${minute}:00${offset}`
       
       console.log(`📅 [${i + 1}/${rows.length}] Scheduling video: ${video?.name}`)
       console.log(`   Orario italiano: ${row.year}-${row.month}-${row.day} ${row.hour}:${row.minute}`)

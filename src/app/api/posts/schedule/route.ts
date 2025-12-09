@@ -108,7 +108,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
+<<<<<<< HEAD
     // Salva nel database - PostgreSQL converte automaticamente in UTC
+=======
+    // Salva nel database (PostgreSQL converte automaticamente in UTC)
+>>>>>>> 04457cc98122d31d63e06b159c723fbe35c59a7f
     const savedPost = await saveScheduledPost({
       userId: session.user.id,
       socialAccountId,
@@ -119,7 +123,11 @@ export async function POST(request: NextRequest) {
       videoUrls,
       videoFilenames,
       videoSizes,
+<<<<<<< HEAD
       scheduledFor: scheduleDate, // NO adjustment - PostgreSQL gestisce la conversione UTC
+=======
+      scheduledFor: scheduleDate, // PostgreSQL salva in UTC
+>>>>>>> 04457cc98122d31d63e06b159c723fbe35c59a7f
       timezone: timezone || 'Europe/Rome',
     })
 
