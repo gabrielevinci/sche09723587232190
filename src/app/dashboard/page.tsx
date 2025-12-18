@@ -2,8 +2,8 @@
 
 import { useSession, signOut } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { useEffect, useState, useRef } from 'react'
-import VideoSchedulerDrawer, { VideoFile, ScheduleRow } from '@/components/VideoSchedulerDrawer'
+import { useEffect, useState } from 'react'
+import VideoSchedulerDrawer, { SocialAccount, ScheduleData } from '@/components/VideoSchedulerDrawer'
 
 interface SocialProfile {
   id: string
@@ -33,15 +33,9 @@ export default function DashboardPage() {
   const [profilesData, setProfilesData] = useState<UserProfilesData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   
-  // Stati per il modal di selezione profilo
-  const [showProfileModal, setShowProfileModal] = useState(false)
-  const [selectedProfile, setSelectedProfile] = useState<SocialProfile | null>(null)
-  
-  // Stati per il drawer di scheduling
-  const [videosToSchedule, setVideosToSchedule] = useState<VideoFile[]>([])
+  // Stato per il drawer di scheduling (nuova versione)
+  const [showSchedulerDrawer, setShowSchedulerDrawer] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
-  
-  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -81,13 +75,9 @@ export default function DashboardPage() {
     signOut({ callbackUrl: '/' })
   }
 
-  // Gestione apertura modal selezione profilo
+  // Gestione apertura drawer scheduling (NUOVO WORKFLOW)
   const handleUploadScheduleClick = () => {
     console.log('🔘 [Dashboard] Click su "Carica + Schedula"')
-    console.log('   → isLoading:', isLoading)
-    console.log('   → profilesData:', profilesData)
-    console.log('   → hasProfiles:', hasProfiles)
-    console.log('   → showProfileModal (before):', showProfileModal)
     
     // Se ancora in caricamento, aspetta
     if (isLoading) {
@@ -99,201 +89,138 @@ export default function DashboardPage() {
     // Se non ha profili, mostra alert
     if (!hasProfiles) {
       console.warn('❌ [Dashboard] Nessun profilo assegnato')
-      console.log('   → profilesData?.socialProfiles:', profilesData?.socialProfiles)
-      console.log('   → length:', profilesData?.socialProfiles?.length)
       alert('Non hai profili social assegnati. Contatta l\'amministratore.')
       return
     }
     
-    console.log('✅ [Dashboard] Apertura modal con profili:', profilesData?.socialProfiles)
-    setShowProfileModal(true)
-    console.log('   → showProfileModal (after):', true)
+    // Apri direttamente il drawer (l'utente seleziona gli account da lì)
+    console.log('✅ [Dashboard] Apertura drawer scheduling')
+    setShowSchedulerDrawer(true)
   }
 
-  // Gestione selezione profilo e apertura file picker
-  const handleProfileSelect = (profile: SocialProfile) => {
-    console.log('👤 [Dashboard] Profilo selezionato:', profile)
-    setSelectedProfile(profile)
-    setShowProfileModal(false)
-    console.log('   → Chiusura modal')
+  // Gestione scheduling dei post (NUOVO WORKFLOW)
+  // I file vengono caricati qui, quando l'utente conferma
+  const handleSchedulePosts = async (data: ScheduleData) => {
+    console.log('🎬 [Dashboard] Inizio schedulazione post...')
+    console.log('   Account selezionati:', data.accounts.length)
+    console.log('   Post da schedulare:', data.posts.length)
     
-    // Trigger file input click
-    setTimeout(() => {
-      console.log('📁 [Dashboard] Apertura file picker...')
-      fileInputRef.current?.click()
-    }, 100)
-  }
-
-  // Gestione selezione file video
-  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files
-    if (!files || files.length === 0) return
-    if (!selectedProfile) return
-
+    setIsUploading(true)
+    
     try {
-      setIsUploading(true)
-
-      const videoFiles: VideoFile[] = []
-      
-      // Converti FileList in array e ordina alfabeticamente
-      const filesArray = Array.from(files).sort((a, b) => a.name.localeCompare(b.name))
+      // Timezone italiano fisso (Europe/Rome = UTC+1)
+      const userTimezone = 'Europe/Rome'
       
       // Crea un timestamp unico per questo batch di upload
       const batchTimestamp = new Date().toISOString().replace(/[:.]/g, '-')
       
-      console.log(`📤 [Dashboard] Iniziando upload di ${filesArray.length} video...`)
-      console.log(`📦 [Dashboard] Batch timestamp: ${batchTimestamp}`)
-
-      // Upload ogni file direttamente a DigitalOcean usando presigned URLs
-      for (let i = 0; i < filesArray.length; i++) {
-        const file = filesArray[i]
-        console.log(`📤 [Dashboard] Upload ${i + 1}/${filesArray.length}: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`)
-
-        try {
-          // 1. Ottieni presigned URL (passa lo stesso timestamp per tutti i file)
+      // Per ogni post, per ogni account selezionato
+      for (const post of data.posts) {
+        // 1. Se c'è un file, caricalo su DigitalOcean
+        let videoUrl = ''
+        let videoFilename = ''
+        
+        if (post.file) {
+          console.log(`📤 [Dashboard] Upload file: ${post.file.name}`)
+          
+          // Ottieni presigned URL
           const presignedRes = await fetch('/api/upload/presigned-url', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              profileId: selectedProfile.id,
-              fileName: file.name,
-              fileSize: file.size,
-              fileType: file.type || 'video/mp4',
-              timestamp: batchTimestamp, // Stesso timestamp per tutti i file del batch
+              profileId: data.accounts[0].id, // Usa il primo account per la cartella
+              fileName: post.file.name,
+              fileSize: post.file.size,
+              fileType: post.file.type || 'video/mp4',
+              timestamp: batchTimestamp,
             }),
           })
-
+          
           if (!presignedRes.ok) {
             const error = await presignedRes.json()
-            throw new Error(error.error || 'Errore generazione URL')
+            throw new Error(`Errore generazione URL per ${post.file.name}: ${error.error}`)
           }
-
+          
           const { presignedUrl, publicUrl } = await presignedRes.json()
-
-          // 2. Upload diretto a DigitalOcean
+          
+          // Upload diretto a DigitalOcean
           const uploadRes = await fetch(presignedUrl, {
             method: 'PUT',
-            body: file,
+            body: post.file,
             headers: {
-              'Content-Type': file.type || 'video/mp4',
+              'Content-Type': post.file.type || 'video/mp4',
             },
           })
-
+          
           if (!uploadRes.ok) {
-            throw new Error(`Upload fallito: ${uploadRes.status} ${uploadRes.statusText}`)
+            throw new Error(`Upload fallito per ${post.file.name}: ${uploadRes.status}`)
           }
-
-          console.log(`✅ [Dashboard] Upload completato: ${file.name}`)
-
-          // Aggiungi alla lista dei video
-          videoFiles.push({
-            id: `video-${i}`,
-            name: file.name,
-            url: publicUrl,
+          
+          videoUrl = publicUrl
+          videoFilename = post.file.name
+          console.log(`✅ [Dashboard] File caricato: ${post.file.name}`)
+        }
+        
+        // 2. Per ogni account, crea una riga nel database
+        for (const account of data.accounts) {
+          // Crea la stringa di data ISO con timezone italiano
+          const year = post.year.toString().padStart(4, '0')
+          const month = post.month.toString().padStart(2, '0')
+          const day = post.day.toString().padStart(2, '0')
+          const hour = post.hour.toString().padStart(2, '0')
+          const minute = post.minute.toString().padStart(2, '0')
+          
+          // Determina offset timezone
+          const testDate = new Date(`${year}-${month}-${day}T12:00:00Z`)
+          const formatter = new Intl.DateTimeFormat('en-US', {
+            timeZone: 'Europe/Rome',
+            timeZoneName: 'short'
           })
-
-        } catch (error) {
-          console.error(`❌ [Dashboard] Errore upload ${file.name}:`, error)
-          throw new Error(`Errore upload ${file.name}: ${error instanceof Error ? error.message : 'Unknown'}`)
+          const parts = formatter.formatToParts(testDate)
+          const tzName = parts.find(p => p.type === 'timeZoneName')?.value || 'CET'
+          const offset = tzName.includes('CEST') ? '+02:00' : '+01:00'
+          
+          const scheduledForISO = `${year}-${month}-${day}T${hour}:${minute}:00${offset}`
+          
+          console.log(`� [Dashboard] Scheduling per account ${account.accountName}`)
+          console.log(`   Orario: ${year}-${month}-${day} ${hour}:${minute}`)
+          
+          // Salva nel database
+          const response = await fetch('/api/posts/schedule', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              socialAccountId: account.id,
+              accountUuid: account.accountUuid,
+              accountId: account.accountId ? parseInt(account.accountId, 10) : undefined,
+              caption: post.caption || '',
+              postType: post.postType || 'post',
+              videoUrls: videoUrl ? [videoUrl] : [],
+              videoFilenames: videoFilename ? [videoFilename] : [],
+              videoSizes: post.file ? [post.file.size] : [],
+              scheduledFor: scheduledForISO,
+              timezone: userTimezone,
+            }),
+          })
+          
+          if (!response.ok) {
+            const error = await response.json()
+            throw new Error(`Errore salvataggio per ${account.accountName}: ${error.error}`)
+          }
+          
+          console.log(`✅ [Dashboard] Post salvato per ${account.accountName}`)
         }
       }
-
-      console.log(`✅ [Dashboard] Tutti i ${filesArray.length} video caricati con successo!`)
-
-      // Apri il drawer con i video caricati
-      setVideosToSchedule(videoFiles)
-
+      
+      console.log('✅ [Dashboard] Tutti i post sono stati schedulati!')
+      alert(`${data.posts.length} post schedulati con successo per ${data.accounts.length} account!`)
+      
     } catch (error) {
-      console.error('Errore durante l\'upload:', error)
-      alert('Errore durante l\'upload dei video: ' + (error instanceof Error ? error.message : 'Errore sconosciuto'))
+      console.error('❌ [Dashboard] Errore durante la schedulazione:', error)
+      throw error
     } finally {
       setIsUploading(false)
-      // Reset file input
-      if (fileInputRef.current) {
-        fileInputRef.current.value = ''
-      }
     }
-  }
-
-  // Gestione scheduling dei post
-  const handleSchedulePosts = async (rows: ScheduleRow[]) => {
-    if (!selectedProfile) {
-      throw new Error('Nessun profilo selezionato')
-    }
-
-    // Timezone italiano fisso (Europe/Rome = UTC+1)
-    const userTimezone = 'Europe/Rome'
-
-    console.log(`🎬 Scheduling ${rows.length} videos individually...`)
-
-    // Processa ogni video separatamente per creare una riga nel database per ognuno
-    for (let i = 0; i < rows.length; i++) {
-      const row = rows[i]
-      const video = videosToSchedule.find(v => v.id === row.videoId)
-      
-      // Crea una stringa di data in formato ISO con orario italiano
-      // Formato: YYYY-MM-DDTHH:MM:SS in ora italiana (Europe/Rome)
-      const year = row.year.toString().padStart(4, '0')
-      const month = row.month.toString().padStart(2, '0')
-      const day = row.day.toString().padStart(2, '0')
-      const hour = row.hour.toString().padStart(2, '0')
-      const minute = row.minute.toString().padStart(2, '0')
-      
-      // Crea la data come se fosse in Europe/Rome timezone
-      // Determina l'offset corretto (UTC+1 in inverno, UTC+2 in estate)
-      const testDate = new Date(`${year}-${month}-${day}T12:00:00Z`)
-      const formatter = new Intl.DateTimeFormat('en-US', {
-        timeZone: 'Europe/Rome',
-        timeZoneName: 'short'
-      })
-      const parts = formatter.formatToParts(testDate)
-      const tzName = parts.find(p => p.type === 'timeZoneName')?.value || 'CET'
-      const offset = tzName.includes('CEST') ? '+02:00' : '+01:00' // CEST=estate, CET=inverno
-      
-      // Crea la stringa ISO con offset corretto per Europe/Rome
-      const scheduledForISO = `${year}-${month}-${day}T${hour}:${minute}:00${offset}`
-      
-      console.log(`📅 [${i + 1}/${rows.length}] Scheduling video: ${video?.name}`)
-      console.log(`   Orario italiano: ${row.year}-${row.month}-${row.day} ${row.hour}:${row.minute}`)
-      console.log(`   Stringa ISO: ${scheduledForISO}`)
-      console.log(`   Caption: ${row.caption || '(vuota)'}`)
-      console.log(`   PostType: ${row.postType}`)
-
-      // Salva ogni video separatamente nel database
-      const response = await fetch('/api/posts/schedule', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          socialAccountId: selectedProfile.id,
-          accountUuid: selectedProfile.accountUuid,
-          accountId: selectedProfile.accountId ? parseInt(selectedProfile.accountId, 10) : undefined,
-          caption: row.caption || '',
-          postType: row.postType || 'post',
-          videoUrls: [video?.url || ''], // Array con un solo video
-          videoFilenames: [video?.name || 'video.mp4'],
-          videoSizes: [0],
-          scheduledFor: scheduledForISO,
-          timezone: userTimezone,
-        }),
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(`Errore video ${i + 1}: ${error.error || 'Errore durante il salvataggio'}`)
-      }
-
-      const result = await response.json()
-      console.log(`✅ [${i + 1}/${rows.length}] Video salvato nel database:`, result.postId)
-      console.log(`   Programmato per: ${new Date(scheduledForISO).toLocaleString('it-IT')}`)
-    }
-
-    console.log(`✅ Tutti i ${rows.length} video sono stati schedulati con successo!`)
-
-    // Chiudi il drawer senza popup
-    setVideosToSchedule([])
-    setSelectedProfile(null)
   }
 
   if (status === 'loading') {
@@ -316,15 +243,15 @@ export default function DashboardPage() {
   const hasAccess = profilesData?.user?.isActive ?? false
   const hasProfiles = profilesData?.socialProfiles && profilesData.socialProfiles.length > 0
   
-  // Debug: Log stato componente
-  console.log('🔍 [Dashboard] Render state:', {
-    isLoading,
-    hasAccess,
-    hasProfiles,
-    profilesDataExists: !!profilesData,
-    profilesCount: profilesData?.socialProfiles?.length || 0,
-    showProfileModal,
-  })
+  // Converti profili in formato SocialAccount per il drawer
+  const socialAccounts: SocialAccount[] = (profilesData?.socialProfiles || []).map(p => ({
+    id: p.id,
+    platform: p.platform,
+    accountName: p.accountName,
+    accountId: p.accountId,
+    accountUuid: p.accountUuid,
+    isActive: p.isActive
+  }))
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -589,119 +516,11 @@ export default function DashboardPage() {
         </div>
       </main>
 
-      {/* Hidden file input per selezione video */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        multiple
-        accept="video/*"
-        onChange={handleFileSelect}
-        className="hidden"
-      />
-
-      {/* Modal selezione profilo */}
-      {showProfileModal && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-            <div
-              className="fixed inset-0 transition-opacity backdrop-blur-sm bg-black/30"
-              onClick={() => {
-                console.log('🔘 [Dashboard] Click overlay - chiusura modal')
-                setShowProfileModal(false)
-              }}
-            />
-
-            <div className="inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6 relative z-10">
-              <div>
-                <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-blue-100">
-                  <svg className="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                  </svg>
-                </div>
-                <div className="mt-3 text-center sm:mt-5">
-                  <h3 className="text-lg leading-6 font-medium text-gray-900">
-                    Seleziona un Profilo
-                  </h3>
-                  <div className="mt-2">
-                    <p className="text-sm text-gray-500">
-                      Scegli il profilo social su cui vuoi schedulare i video
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-5 space-y-2">
-                {profilesData?.socialProfiles && profilesData.socialProfiles.length > 0 ? (
-                  profilesData.socialProfiles.map((profile) => {
-                    const isActive = profile.isActive;
-                    return (
-                      <button
-                        key={profile.id}
-                        onClick={() => isActive && handleProfileSelect(profile)}
-                        disabled={!isActive}
-                        className={`w-full flex items-center p-3 border rounded-lg transition-colors text-left ${
-                          isActive
-                            ? 'border-gray-200 hover:bg-blue-50 hover:border-blue-300 cursor-pointer'
-                            : 'border-red-200 bg-red-50 cursor-not-allowed opacity-60'
-                        }`}
-                      >
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                          isActive ? 'bg-blue-100' : 'bg-red-100'
-                        }`}>
-                          <span className={`font-semibold text-sm ${
-                            isActive ? 'text-blue-600' : 'text-red-600'
-                          }`}>
-                            {profile.platform.charAt(0).toUpperCase()}
-                          </span>
-                        </div>
-                        <div className="ml-3 flex-1">
-                          <div className="flex items-center gap-2">
-                            <h4 className="font-medium text-gray-900">{profile.accountName}</h4>
-                            {!isActive && (
-                              <span className="text-xs px-2 py-0.5 bg-red-100 text-red-700 rounded">
-                                Non autorizzato
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-xs text-gray-500 capitalize">{profile.platform.replace('_', ' ')}</p>
-                          {!isActive && (
-                            <p className="text-xs text-red-600 mt-1">
-                              Riconnetti l&apos;account su OnlySocial
-                            </p>
-                          )}
-                        </div>
-                        {isActive && (
-                          <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                          </svg>
-                        )}
-                      </button>
-                    );
-                  })
-                ) : (
-                  <div className="text-center py-4 text-gray-500">
-                    <p>Nessun profilo disponibile</p>
-                  </div>
-                )}
-              </div>
-
-              <div className="mt-5 sm:mt-6">
-                <button
-                  type="button"
-                  onClick={() => setShowProfileModal(false)}
-                  className="w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none sm:text-sm"
-                >
-                  Annulla
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Drawer scheduling video */}
       <VideoSchedulerDrawer
-        videos={videosToSchedule}
+        isOpen={showSchedulerDrawer}
+        onClose={() => setShowSchedulerDrawer(false)}
+        accounts={socialAccounts}
         onSchedule={handleSchedulePosts}
       />
     </div>
