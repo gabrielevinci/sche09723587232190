@@ -14,10 +14,22 @@
  */
 
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
-import { HotTable } from '@handsontable/react'
+import dynamic from 'next/dynamic'
 import { registerAllModules } from 'handsontable/registry'
 import 'handsontable/dist/handsontable.full.min.css'
-import Handsontable from 'handsontable'
+
+// Import dinamico per Handsontable (necessario per Next.js)
+const HotTable = dynamic(
+  () => import('@handsontable/react').then((mod) => mod.HotTable),
+  { 
+    ssr: false,
+    loading: () => (
+      <div className="flex items-center justify-center h-full bg-gray-50">
+        <div className="text-gray-500">Caricamento tabella...</div>
+      </div>
+    )
+  }
+)
 
 // Registra tutti i moduli di Handsontable
 registerAllModules()
@@ -328,16 +340,17 @@ export default function VideoSchedulerDrawer({
   }, [tableData, rowFiles, selectedAccounts, validateData, onSchedule, onClose])
 
   // Handler cambio dati Handsontable
-  const handleTableChange = useCallback((changes: Handsontable.CellChange[] | null) => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const handleTableChange = useCallback((changes: any[] | null) => {
     if (!changes) return
 
     setTableData(prev => {
       const newData = [...prev]
-      changes.forEach(([row, prop, , newValue]) => {
+      changes.forEach(([row, prop, , newValue]: [number, string, unknown, unknown]) => {
         if (newData[row]) {
           const key = prop as keyof TableRow
           if (key === 'year' || key === 'month' || key === 'day' || key === 'hour' || key === 'minute') {
-            newData[row] = { ...newData[row], [key]: parseInt(newValue) || 0 }
+            newData[row] = { ...newData[row], [key]: parseInt(String(newValue)) || 0 }
           } else {
             newData[row] = { ...newData[row], [key]: newValue }
           }
@@ -507,8 +520,9 @@ export default function VideoSchedulerDrawer({
                   outsideClickDeselects={false}
                   rowHeights={35}
                   colWidths={[250, 80, 70, 70, 65, 70, 80, 150]}
-                  cells={(row, col) => {
-                    const cellProperties: Handsontable.CellMeta = {}
+                  cells={(row: number, col: number) => {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const cellProperties: any = {}
                     if (col === 7) {
                       // Colonna Contenuto - stile speciale
                       cellProperties.className = rowFiles[row] 
