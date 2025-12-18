@@ -15,12 +15,10 @@
 
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
 import dynamic from 'next/dynamic'
-import { registerAllModules } from 'handsontable/registry'
-import 'handsontable/dist/handsontable.full.min.css'
 
-// Import dinamico per Handsontable (necessario per Next.js)
-const HotTable = dynamic(
-  () => import('@handsontable/react').then((mod) => mod.HotTable),
+// Import dinamico per Handsontable wrapper (necessario per Next.js SSR)
+const HandsontableWrapper = dynamic(
+  () => import('./HandsontableWrapper'),
   { 
     ssr: false,
     loading: () => (
@@ -30,9 +28,6 @@ const HotTable = dynamic(
     )
   }
 )
-
-// Registra tutti i moduli di Handsontable
-registerAllModules()
 
 // Interfacce
 export interface SocialAccount {
@@ -493,38 +488,18 @@ export default function VideoSchedulerDrawer({
             {/* Container tabella con altezza fissa grande */}
             <div className="border rounded-lg overflow-hidden bg-white" style={{ height: '500px' }}>
               {isMounted && (
-                <HotTable
+                <HandsontableWrapper
                   ref={hotRef}
                   data={tableData}
-                  licenseKey="non-commercial-and-evaluation"
-                  height="100%"
-                  width="100%"
-                  stretchH="all"
-                  rowHeaders={true}
                   colHeaders={['Caption', 'Anno', 'Mese', 'Giorno', 'Ora', 'Minuto', 'Tipo', 'Contenuto']}
                   columns={columns}
-                  afterChange={handleTableChange}
-                  afterOnCellMouseDown={(_event, coords) => {
-                    if (coords.row >= 0) {
-                      handleCellClick(coords.row, coords.col)
-                    }
-                  }}
-                  manualColumnResize={true}
-                  manualRowResize={true}
-                  contextMenu={['row_above', 'row_below', 'remove_row', '---------', 'copy', 'cut']}
-                  copyPaste={true}
-                  fillHandle={true}
-                  autoWrapRow={true}
-                  autoWrapCol={true}
-                  selectionMode="multiple"
-                  outsideClickDeselects={false}
-                  rowHeights={35}
                   colWidths={[250, 80, 70, 70, 65, 70, 80, 150]}
-                  cells={(row: number, col: number) => {
+                  onCellClick={handleCellClick}
+                  onChange={handleTableChange}
+                  cellsCallback={(row: number, col: number) => {
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     const cellProperties: any = {}
                     if (col === 7) {
-                      // Colonna Contenuto - stile speciale
                       cellProperties.className = rowFiles[row] 
                         ? 'htCenter htMiddle cursor-pointer bg-green-50 text-green-700 font-medium'
                         : 'htCenter htMiddle cursor-pointer bg-blue-50 text-blue-600 font-medium hover:bg-blue-100'
