@@ -101,10 +101,6 @@ export default function VideoSchedulerDrawer({
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [previewType, setPreviewType] = useState<'video' | 'image' | null>(null)
   
-  // Ref per la tabella Handsontable
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const hotRef = useRef<any>(null)
-  
   // Ref per input file nascosto
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [currentFileRow, setCurrentFileRow] = useState<number | null>(null)
@@ -164,6 +160,7 @@ export default function VideoSchedulerDrawer({
       setRowFiles({})
       setPreviewUrl(null)
       setPreviewType(null)
+      setSelectedRows(new Set())
     }
   }, [isOpen, createDefaultRow])
 
@@ -190,36 +187,32 @@ export default function VideoSchedulerDrawer({
     setTableData(prev => [...prev, createDefaultRow()])
   }, [createDefaultRow])
 
-  // Rimuovi righe selezionate
+  // Stato per righe selezionate (tracciato manualmente)
+  const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set())
+
+  // Rimuovi righe selezionate (o l'ultima riga se nessuna selezione)
   const removeSelectedRows = useCallback(() => {
-    const hot = hotRef.current?.hotInstance
-    if (!hot) return
-
-    const selected = hot.getSelected()
-    if (!selected || selected.length === 0) return
-
-    const rowsToRemove = new Set<number>()
-    selected.forEach((selection: number[]) => {
-      const [startRow, , endRow] = selection
-      for (let i = Math.min(startRow, endRow); i <= Math.max(startRow, endRow); i++) {
-        rowsToRemove.add(i)
-      }
-    })
-
-    setTableData(prev => prev.filter((_, i) => !rowsToRemove.has(i)))
-    setRowFiles(prev => {
-      const newFiles: { [key: number]: File } = {}
-      let newIndex = 0
-      Object.keys(prev).forEach(key => {
-        const oldIndex = parseInt(key)
-        if (!rowsToRemove.has(oldIndex)) {
-          newFiles[newIndex] = prev[oldIndex]
-          newIndex++
-        }
+    if (selectedRows.size > 0) {
+      // Rimuovi le righe selezionate
+      setTableData(prev => prev.filter((_, i) => !selectedRows.has(i)))
+      setRowFiles(prev => {
+        const newFiles: { [key: number]: File } = {}
+        let newIndex = 0
+        Object.keys(prev).forEach(key => {
+          const oldIndex = parseInt(key)
+          if (!selectedRows.has(oldIndex)) {
+            newFiles[newIndex] = prev[oldIndex]
+            newIndex++
+          }
+        })
+        return newFiles
       })
-      return newFiles
-    })
-  }, [])
+      setSelectedRows(new Set())
+    } else if (tableData.length > 1) {
+      // Rimuovi l'ultima riga se nessuna selezione
+      setTableData(prev => prev.slice(0, -1))
+    }
+  }, [selectedRows, tableData.length])
 
   // Handler selezione file
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -241,11 +234,6 @@ export default function VideoSchedulerDrawer({
         }
         return newData
       })
-
-      // Force re-render della tabella
-      setTimeout(() => {
-        hotRef.current?.hotInstance?.render()
-      }, 50)
     }
     
     e.target.value = ''
@@ -489,7 +477,6 @@ export default function VideoSchedulerDrawer({
             <div className="border rounded-lg overflow-hidden bg-white" style={{ height: '500px' }}>
               {isMounted && (
                 <HandsontableWrapper
-                  ref={hotRef}
                   data={tableData}
                   colHeaders={['Caption', 'Anno', 'Mese', 'Giorno', 'Ora', 'Minuto', 'Tipo', 'Contenuto']}
                   columns={columns}

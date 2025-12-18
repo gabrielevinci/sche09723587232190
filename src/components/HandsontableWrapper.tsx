@@ -3,7 +3,7 @@
 import { HotTable } from '@handsontable/react'
 import { registerAllModules } from 'handsontable/registry'
 import 'handsontable/dist/handsontable.full.min.css'
-import { useRef, forwardRef, useImperativeHandle } from 'react'
+import { useEffect, useState } from 'react'
 
 // Registra tutti i moduli di Handsontable
 registerAllModules()
@@ -20,54 +20,61 @@ interface HandsontableWrapperProps {
   cellsCallback: (row: number, col: number) => any
 }
 
-export interface HandsontableWrapperRef {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  getHotInstance: () => any
-}
+export default function HandsontableWrapper({ 
+  data, 
+  columns, 
+  colHeaders, 
+  colWidths, 
+  onCellClick, 
+  onChange, 
+  cellsCallback 
+}: HandsontableWrapperProps) {
+  const [isReady, setIsReady] = useState(false)
 
-const HandsontableWrapper = forwardRef<HandsontableWrapperRef, HandsontableWrapperProps>(
-  ({ data, columns, colHeaders, colWidths, onCellClick, onChange, cellsCallback }, ref) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const hotRef = useRef<any>(null)
+  useEffect(() => {
+    // Piccolo delay per assicurarsi che il DOM sia pronto
+    const timer = setTimeout(() => {
+      setIsReady(true)
+    }, 100)
+    return () => clearTimeout(timer)
+  }, [])
 
-    useImperativeHandle(ref, () => ({
-      getHotInstance: () => hotRef.current?.hotInstance
-    }))
-
+  if (!isReady) {
     return (
-      <HotTable
-        ref={hotRef}
-        data={data}
-        licenseKey="non-commercial-and-evaluation"
-        height="100%"
-        width="100%"
-        stretchH="all"
-        rowHeaders={true}
-        colHeaders={colHeaders}
-        columns={columns}
-        afterChange={onChange}
-        afterOnCellMouseDown={(_event, coords) => {
-          if (coords.row >= 0) {
-            onCellClick(coords.row, coords.col)
-          }
-        }}
-        manualColumnResize={true}
-        manualRowResize={true}
-        contextMenu={['row_above', 'row_below', 'remove_row', '---------', 'copy', 'cut']}
-        copyPaste={true}
-        fillHandle={true}
-        autoWrapRow={true}
-        autoWrapCol={true}
-        selectionMode="multiple"
-        outsideClickDeselects={false}
-        rowHeights={35}
-        colWidths={colWidths}
-        cells={cellsCallback}
-      />
+      <div className="flex items-center justify-center h-full bg-gray-50">
+        <div className="text-gray-500">Inizializzazione tabella...</div>
+      </div>
     )
   }
-)
 
-HandsontableWrapper.displayName = 'HandsontableWrapper'
-
-export default HandsontableWrapper
+  return (
+    <HotTable
+      data={data}
+      licenseKey="non-commercial-and-evaluation"
+      height={480}
+      width="100%"
+      stretchH="all"
+      rowHeaders={true}
+      colHeaders={colHeaders}
+      columns={columns}
+      afterChange={onChange}
+      afterOnCellMouseDown={(_event, coords) => {
+        if (coords.row >= 0) {
+          onCellClick(coords.row, coords.col)
+        }
+      }}
+      manualColumnResize={true}
+      manualRowResize={true}
+      contextMenu={['row_above', 'row_below', 'remove_row', '---------', 'copy', 'cut']}
+      copyPaste={true}
+      fillHandle={true}
+      autoWrapRow={true}
+      autoWrapCol={true}
+      selectionMode="multiple"
+      outsideClickDeselects={false}
+      rowHeights={35}
+      colWidths={colWidths}
+      cells={cellsCallback}
+    />
+  )
+}
