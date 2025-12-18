@@ -194,16 +194,23 @@ async function handleCheckAccounts(): Promise<LambdaResult> {
 async function handleScheduleCronJob(): Promise<LambdaResult> {
   console.log('⏰ [Lambda] Processing scheduled videos...');
   
-  // IMPORTANTE: Il database salva le date in ora italiana (Europe/Rome)
-  // Lambda gira in UTC, quindi usiamo l'ora UTC per le query
-  // (il database confronta automaticamente con le date salvate in italiano)
-  const nowUTC = new Date();
+  // IMPORTANTE: Il database salva le date in ora italiana (Europe/Rome) come "timestamp without time zone"
+  // Quindi dobbiamo confrontare usando l'ora italiana, non UTC
+  // Costruiamo una data "fake" che rappresenta l'ora italiana corrente come se fosse UTC
+  // Questo permette il confronto corretto con i valori nel database
   
-  // Finestra temporale in UTC:
+  const nowUTC = new Date();
+  // Ottieni l'ora italiana formattata
+  const italianTimeStr = formatInTimeZone(nowUTC, TIMEZONE, "yyyy-MM-dd'T'HH:mm:ss");
+  // Crea un oggetto Date che rappresenta l'ora italiana (ma JavaScript lo tratterà come UTC)
+  // Questo è necessario perché il database restituisce timestamp without timezone che Prisma interpreta come UTC
+  const nowItalian = new Date(italianTimeStr + 'Z');
+  
+  // Finestra temporale basata su ora italiana:
   // - Recovery: 360 minuti indietro (6 ore) per recuperare post mancati
   // - Upcoming: 65 minuti avanti per processare i prossimi post
-  const sixHoursAgo = new Date(nowUTC.getTime() - (360 * 60 * 1000)); // -6h
-  const sixtyFiveMinutesFromNow = new Date(nowUTC.getTime() + (65 * 60 * 1000)); // +65min
+  const sixHoursAgo = new Date(nowItalian.getTime() - (360 * 60 * 1000)); // -6h
+  const sixtyFiveMinutesFromNow = new Date(nowItalian.getTime() + (65 * 60 * 1000)); // +65min
   
   const results = {
     processed: 0,
@@ -215,11 +222,12 @@ async function handleScheduleCronJob(): Promise<LambdaResult> {
   };
   
   try {
-    console.log(`🔍 [Lambda] Time window:`);
+    console.log(`🔍 [Lambda] Time window (Italian timezone):`);
     console.log(`   UTC now: ${nowUTC.toISOString()}`);
-    console.log(`   Italian now: ${formatInTimeZone(nowUTC, TIMEZONE, 'yyyy-MM-dd HH:mm:ss')}`);
-    console.log(`   Recovery (-6h): ${formatInTimeZone(sixHoursAgo, TIMEZONE, 'HH:mm')} to ${formatInTimeZone(nowUTC, TIMEZONE, 'HH:mm')} (ora italiana)`);
-    console.log(`   Upcoming (+65min): ${formatInTimeZone(nowUTC, TIMEZONE, 'HH:mm')} to ${formatInTimeZone(sixtyFiveMinutesFromNow, TIMEZONE, 'HH:mm')} (ora italiana)`);
+    console.log(`   Italian now: ${italianTimeStr}`);
+    console.log(`   Query window: ${sixHoursAgo.toISOString()} to ${sixtyFiveMinutesFromNow.toISOString()}`);
+    console.log(`   Recovery (-6h): from ${formatInTimeZone(new Date(sixHoursAgo.toISOString().slice(0, -1)), 'UTC', 'HH:mm')} to ${italianTimeStr.slice(11, 16)} (ora italiana)`);
+    console.log(`   Upcoming (+65min): from ${italianTimeStr.slice(11, 16)} to ${formatInTimeZone(new Date(sixtyFiveMinutesFromNow.toISOString().slice(0, -1)), 'UTC', 'HH:mm')} (ora italiana)`);
     
     // Query: post PENDING o FAILED nella finestra -360' → +65' (include retry dei falliti)
     const videosToSchedule = await prisma.scheduledPost.findMany({
@@ -254,12 +262,16 @@ async function handleScheduleCronJob(): Promise<LambdaResult> {
     for (const video of videosToSchedule) {
       results.processed++;
       
-      // Determina se il post è scaduto (scheduledFor < nowUTC) o futuro
-      const isOverdue = video.scheduledFor < nowUTC;
+      // Determina se il post è scaduto (scheduledFor < ora italiana corrente) o futuro
+      // video.scheduledFor viene dal DB come timestamp che rappresenta ora italiana
+      const isOverdue = video.scheduledFor < nowItalian;
+      
+      // Estrai l'ora italiana dalla data (il valore è già in ora italiana, ma JS lo vede come UTC)
+      const scheduledHHMM = video.scheduledFor.toISOString().slice(11, 16);
       
       try {
         // Log compatto per velocità
-        console.log(`📹 [${results.processed}/${videosToSchedule.length}] ${video.id} - ${isOverdue ? 'NOW' : 'SCHEDULE'} ${formatInTimeZone(video.scheduledFor, TIMEZONE, 'HH:mm')}`);
+        console.log(`📹 [${results.processed}/${videosToSchedule.length}] ${video.id} - ${isOverdue ? 'NOW' : 'SCHEDULE'} ${scheduledHHMM} (ora italiana)`);
         
         // Recupera SocialAccount separatamente
         const socialAccount = await prisma.socialAccount.findUnique({

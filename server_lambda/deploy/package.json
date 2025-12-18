@@ -2,22 +2,11 @@
   "name": "onlysocial-lambda-scheduler",
   "version": "1.0.0",
   "description": "AWS Lambda function per gestire scheduling su OnlySocial con rate limiting",
-  "main": "dist/index.js",
-  "scripts": {
-    "build": "npx prisma generate --schema=../prisma/schema.prisma && tsc",
-    "clean": "if exist dist rmdir /s /q dist",
-    "package": "npm run build && cd dist && tar -a -c -f ../lambda.zip * && cd ..",
-    "deploy": "npm run package && aws lambda update-function-code --function-name onlysocial-scheduler --zip-file fileb://lambda.zip"
-  },
+  "main": "index.js",
   "dependencies": {
     "@prisma/client": "^6.17.0",
     "bottleneck": "^2.19.5",
     "date-fns": "^3.6.0",
     "date-fns-tz": "^3.2.0"
-  },
-  "devDependencies": {
-    "@types/node": "^20.14.0",
-    "prisma": "^6.17.0",
-    "typescript": "^5.5.0"
   }
 }
