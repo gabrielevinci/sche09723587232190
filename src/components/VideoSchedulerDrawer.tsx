@@ -14,16 +14,10 @@
  */
 
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
-import dynamic from 'next/dynamic'
+import { HotTable } from '@handsontable/react'
 import { registerAllModules } from 'handsontable/registry'
 import 'handsontable/dist/handsontable.full.min.css'
 import Handsontable from 'handsontable'
-
-// Import dinamico per evitare SSR issues
-const HotTable = dynamic(
-  () => import('@handsontable/react').then(mod => mod.HotTable),
-  { ssr: false }
-)
 
 // Registra tutti i moduli di Handsontable
 registerAllModules()
@@ -72,7 +66,7 @@ interface TableRow {
   hour: number
   minute: number
   postType: string
-  contenuto: string // 'Carica' o nome file
+  contenuto: string
 }
 
 export default function VideoSchedulerDrawer({ 
@@ -81,6 +75,9 @@ export default function VideoSchedulerDrawer({
   accounts, 
   onSchedule 
 }: VideoSchedulerDrawerProps) {
+  // Stato per SSR
+  const [isMounted, setIsMounted] = useState(false)
+  
   // Stato account selezionati
   const [selectedAccounts, setSelectedAccounts] = useState<SocialAccount[]>([])
   
@@ -104,6 +101,11 @@ export default function VideoSchedulerDrawer({
   // Ref per input file nascosto
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [currentFileRow, setCurrentFileRow] = useState<number | null>(null)
+
+  // Mount effect per SSR
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
 
   // Piattaforma selezionata (prima della selezione account)
   const selectedPlatform = useMemo(() => {
@@ -130,7 +132,7 @@ export default function VideoSchedulerDrawer({
   const minutes = useMemo(() => Array.from({ length: 60 }, (_, i) => i), [])
 
   // Tipi di post disponibili
-  const postTypes = ['reel', 'story', 'post']
+  const postTypes = useMemo(() => ['reel', 'story', 'post'], [])
 
   // Crea riga di default con data/ora corrente
   const createDefaultRow = useCallback((): TableRow => {
@@ -143,7 +145,7 @@ export default function VideoSchedulerDrawer({
       hour: now.getHours(),
       minute: now.getMinutes(),
       postType: 'reel',
-      contenuto: 'Carica'
+      contenuto: '📤 Carica'
     }
   }, [])
 
@@ -168,11 +170,10 @@ export default function VideoSchedulerDrawer({
       if (isSelected) {
         return prev.filter(a => a.id !== account.id)
       } else {
-        // Se è il primo o della stessa piattaforma
         if (prev.length === 0 || prev[0].platform === account.platform) {
           return [...prev, account]
         }
-        return prev // Non aggiungere se piattaforma diversa
+        return prev
       }
     })
   }, [])
@@ -190,7 +191,6 @@ export default function VideoSchedulerDrawer({
     const selected = hot.getSelected()
     if (!selected || selected.length === 0) return
 
-    // Raccogli gli indici delle righe selezionate
     const rowsToRemove = new Set<number>()
     selected.forEach((selection: number[]) => {
       const [startRow, , endRow] = selection
@@ -199,7 +199,6 @@ export default function VideoSchedulerDrawer({
       }
     })
 
-    // Filtra i dati e i file
     setTableData(prev => prev.filter((_, i) => !rowsToRemove.has(i)))
     setRowFiles(prev => {
       const newFiles: { [key: number]: File } = {}
@@ -224,20 +223,24 @@ export default function VideoSchedulerDrawer({
         [currentFileRow]: file
       }))
       
-      // Aggiorna il nome nella tabella
       setTableData(prev => {
         const newData = [...prev]
         if (newData[currentFileRow]) {
+          const fileName = file.name.length > 12 ? file.name.substring(0, 10) + '...' : file.name
           newData[currentFileRow] = {
             ...newData[currentFileRow],
-            contenuto: file.name.length > 15 ? file.name.substring(0, 12) + '...' : file.name
+            contenuto: `✅ ${fileName}`
           }
         }
         return newData
       })
+
+      // Force re-render della tabella
+      setTimeout(() => {
+        hotRef.current?.hotInstance?.render()
+      }, 50)
     }
     
-    // Reset
     e.target.value = ''
     setCurrentFileRow(null)
   }, [currentFileRow])
@@ -266,7 +269,6 @@ export default function VideoSchedulerDrawer({
     for (let i = 0; i < tableData.length; i++) {
       const row = tableData[i]
       
-      // Verifica che la caption non sia vuota o che ci sia un file
       const hasFile = rowFiles[i] !== undefined
       const hasCaption = row.caption && row.caption.trim() !== ''
       
@@ -278,7 +280,6 @@ export default function VideoSchedulerDrawer({
         return { valid: false, error: `Riga ${i + 1}: Inserisci almeno una caption o un contenuto` }
       }
 
-      // Verifica data valida
       const date = new Date(row.year, row.month - 1, row.day, row.hour, row.minute)
       if (isNaN(date.getTime())) {
         return { valid: false, error: `Riga ${i + 1}: Data non valida` }
@@ -299,7 +300,6 @@ export default function VideoSchedulerDrawer({
     setLoading(true)
 
     try {
-      // Converti tableData in PostRow[]
       const posts: PostRow[] = tableData.map((row, index) => ({
         id: `post-${Date.now()}-${index}`,
         caption: row.caption,
@@ -347,93 +347,36 @@ export default function VideoSchedulerDrawer({
     })
   }, [])
 
-  // Renderer personalizzato per la colonna Contenuto
-  const contenutoRenderer = useCallback((
-    _instance: Handsontable,
-    td: HTMLTableCellElement,
-    row: number,
-    _col: number,
-    _prop: string | number,
-    value: string,
-  ) => {
-    td.innerHTML = ''
-    td.style.cursor = 'pointer'
-    td.style.textAlign = 'center'
-    td.style.padding = '4px'
-
-    const hasFile = rowFiles[row] !== undefined
-
-    if (hasFile) {
-      // Mostra nome file con icona preview
-      const container = document.createElement('div')
-      container.style.display = 'flex'
-      container.style.alignItems = 'center'
-      container.style.justifyContent = 'center'
-      container.style.gap = '8px'
-
-      const nameSpan = document.createElement('span')
-      nameSpan.textContent = value || 'File'
-      nameSpan.style.color = '#059669'
-      nameSpan.style.fontWeight = '500'
-      nameSpan.style.fontSize = '12px'
-      nameSpan.title = rowFiles[row]?.name || ''
-
-      const viewBtn = document.createElement('button')
-      viewBtn.textContent = '👁'
-      viewBtn.style.border = 'none'
-      viewBtn.style.background = 'transparent'
-      viewBtn.style.cursor = 'pointer'
-      viewBtn.style.fontSize = '14px'
-      viewBtn.title = 'Visualizza'
-      viewBtn.onclick = (e) => {
-        e.stopPropagation()
+  // Handler click sulla cella contenuto
+  const handleCellClick = useCallback((row: number, col: number) => {
+    // Colonna 7 è "Contenuto"
+    if (col === 7) {
+      const hasFile = rowFiles[row] !== undefined
+      if (hasFile) {
+        // Mostra preview
         const file = rowFiles[row]
-        if (file) {
-          const url = URL.createObjectURL(file)
-          setPreviewUrl(url)
-          setPreviewType(file.type.startsWith('video/') ? 'video' : 'image')
-        }
-      }
-
-      const changeBtn = document.createElement('button')
-      changeBtn.textContent = '📁'
-      changeBtn.style.border = 'none'
-      changeBtn.style.background = 'transparent'
-      changeBtn.style.cursor = 'pointer'
-      changeBtn.style.fontSize = '14px'
-      changeBtn.title = 'Cambia file'
-      changeBtn.onclick = (e) => {
-        e.stopPropagation()
+        const url = URL.createObjectURL(file)
+        setPreviewUrl(url)
+        setPreviewType(file.type.startsWith('video/') ? 'video' : 'image')
+      } else {
+        // Apri file picker
         setCurrentFileRow(row)
         fileInputRef.current?.click()
       }
-
-      container.appendChild(nameSpan)
-      container.appendChild(viewBtn)
-      container.appendChild(changeBtn)
-      td.appendChild(container)
-    } else {
-      // Mostra pulsante Carica
-      const btn = document.createElement('button')
-      btn.textContent = '📤 Carica'
-      btn.style.padding = '4px 12px'
-      btn.style.border = '1px solid #3b82f6'
-      btn.style.borderRadius = '4px'
-      btn.style.background = '#eff6ff'
-      btn.style.color = '#2563eb'
-      btn.style.cursor = 'pointer'
-      btn.style.fontSize = '12px'
-      btn.style.fontWeight = '500'
-      btn.onclick = (e) => {
-        e.stopPropagation()
-        setCurrentFileRow(row)
-        fileInputRef.current?.click()
-      }
-      td.appendChild(btn)
     }
-
-    return td
   }, [rowFiles])
+
+  // Colonne configurazione
+  const columns = useMemo(() => [
+    { data: 'caption', type: 'text', width: 250 },
+    { data: 'year', type: 'dropdown', source: years.map(String), width: 80 },
+    { data: 'month', type: 'dropdown', source: months.map(String), width: 70 },
+    { data: 'day', type: 'dropdown', source: days.map(String), width: 70 },
+    { data: 'hour', type: 'dropdown', source: hours.map(String), width: 65 },
+    { data: 'minute', type: 'dropdown', source: minutes.map(String), width: 70 },
+    { data: 'postType', type: 'dropdown', source: postTypes, width: 80 },
+    { data: 'contenuto', type: 'text', width: 150, readOnly: true }
+  ], [years, months, days, hours, minutes, postTypes])
 
   if (!isOpen) return null
 
@@ -445,8 +388,8 @@ export default function VideoSchedulerDrawer({
         onClick={onClose}
       />
 
-      {/* Drawer */}
-      <div className="absolute right-0 top-0 bottom-0 w-full max-w-5xl bg-white shadow-2xl flex flex-col">
+      {/* Drawer - MOLTO PIÙ GRANDE */}
+      <div className="absolute right-0 top-0 bottom-0 w-full max-w-[90vw] xl:max-w-[85vw] bg-white shadow-2xl flex flex-col">
         {/* Header */}
         <div className="flex-shrink-0 flex items-center justify-between px-6 py-4 border-b bg-gradient-to-r from-blue-600 to-purple-600">
           <h2 className="text-xl font-bold text-white">Schedula Post</h2>
@@ -460,7 +403,7 @@ export default function VideoSchedulerDrawer({
           </button>
         </div>
 
-        {/* Content - Scrollabile */}
+        {/* Content */}
         <div className="flex-1 overflow-y-auto p-6">
           {/* Sezione Account */}
           <div className="mb-6">
@@ -506,7 +449,7 @@ export default function VideoSchedulerDrawer({
             )}
           </div>
 
-          {/* Tabella Excel-like con altezza fissa */}
+          {/* Tabella Excel-like */}
           <div className="mb-6">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-semibold text-gray-700">
@@ -534,43 +477,52 @@ export default function VideoSchedulerDrawer({
               </div>
             </div>
 
-            {/* Container con altezza fissa per la tabella */}
-            <div className="border rounded-lg overflow-hidden" style={{ height: '350px' }}>
-              <HotTable
-                ref={hotRef}
-                data={tableData}
-                licenseKey="non-commercial-and-evaluation"
-                height="100%"
-                width="100%"
-                stretchH="all"
-                rowHeaders={true}
-                colHeaders={['Caption', 'Anno', 'Mese', 'Giorno', 'Ora', 'Minuto', 'Tipo', 'Contenuto']}
-                columns={[
-                  { data: 'caption', type: 'text', width: 200 },
-                  { data: 'year', type: 'dropdown', source: years.map(String), width: 70 },
-                  { data: 'month', type: 'dropdown', source: months.map(String), width: 60 },
-                  { data: 'day', type: 'dropdown', source: days.map(String), width: 60 },
-                  { data: 'hour', type: 'dropdown', source: hours.map(String), width: 55 },
-                  { data: 'minute', type: 'dropdown', source: minutes.map(String), width: 60 },
-                  { data: 'postType', type: 'dropdown', source: postTypes, width: 70 },
-                  { data: 'contenuto', renderer: contenutoRenderer, readOnly: true, width: 140 }
-                ]}
-                afterChange={handleTableChange}
-                manualColumnResize={true}
-                manualRowResize={true}
-                contextMenu={['row_above', 'row_below', 'remove_row', '---------', 'copy', 'cut']}
-                copyPaste={true}
-                fillHandle={true}
-                autoWrapRow={true}
-                autoWrapCol={true}
-                selectionMode="multiple"
-                outsideClickDeselects={false}
-                className="htCustomStyles"
-              />
+            {/* Container tabella con altezza fissa grande */}
+            <div className="border rounded-lg overflow-hidden bg-white" style={{ height: '500px' }}>
+              {isMounted && (
+                <HotTable
+                  ref={hotRef}
+                  data={tableData}
+                  licenseKey="non-commercial-and-evaluation"
+                  height="100%"
+                  width="100%"
+                  stretchH="all"
+                  rowHeaders={true}
+                  colHeaders={['Caption', 'Anno', 'Mese', 'Giorno', 'Ora', 'Minuto', 'Tipo', 'Contenuto']}
+                  columns={columns}
+                  afterChange={handleTableChange}
+                  afterOnCellMouseDown={(_event, coords) => {
+                    if (coords.row >= 0) {
+                      handleCellClick(coords.row, coords.col)
+                    }
+                  }}
+                  manualColumnResize={true}
+                  manualRowResize={true}
+                  contextMenu={['row_above', 'row_below', 'remove_row', '---------', 'copy', 'cut']}
+                  copyPaste={true}
+                  fillHandle={true}
+                  autoWrapRow={true}
+                  autoWrapCol={true}
+                  selectionMode="multiple"
+                  outsideClickDeselects={false}
+                  rowHeights={35}
+                  colWidths={[250, 80, 70, 70, 65, 70, 80, 150]}
+                  cells={(row, col) => {
+                    const cellProperties: Handsontable.CellMeta = {}
+                    if (col === 7) {
+                      // Colonna Contenuto - stile speciale
+                      cellProperties.className = rowFiles[row] 
+                        ? 'htCenter htMiddle cursor-pointer bg-green-50 text-green-700 font-medium'
+                        : 'htCenter htMiddle cursor-pointer bg-blue-50 text-blue-600 font-medium hover:bg-blue-100'
+                    }
+                    return cellProperties
+                  }}
+                />
+              )}
             </div>
 
             <p className="text-xs text-gray-500 mt-2">
-              💡 Usa Ctrl+Click per selezioni multiple, Shift+Click per intervalli. Copia/incolla con Ctrl+C/V. Trascina per riempire celle.
+              💡 Usa Ctrl+Click per selezioni multiple, Shift+Click per intervalli. Copia/incolla con Ctrl+C/V. Clicca su &quot;Contenuto&quot; per caricare file.
             </p>
           </div>
         </div>
@@ -657,25 +609,49 @@ export default function VideoSchedulerDrawer({
 
       {/* Stili custom per Handsontable */}
       <style jsx global>{`
-        .htCustomStyles .handsontable {
-          font-size: 13px;
+        .handsontable {
+          font-size: 13px !important;
+          font-family: inherit !important;
         }
-        .htCustomStyles .handsontable th {
+        .handsontable th {
           background: #f3f4f6 !important;
           font-weight: 600 !important;
           color: #374151 !important;
+          border-color: #e5e7eb !important;
         }
-        .htCustomStyles .handsontable td {
+        .handsontable td {
           vertical-align: middle !important;
+          border-color: #e5e7eb !important;
         }
-        .htCustomStyles .handsontable .htDimmed {
-          color: #6b7280;
+        .handsontable tr:nth-child(even) td {
+          background: #fafafa;
         }
-        .htCustomStyles .handsontable td.area {
+        .handsontable td.area {
           background: #dbeafe !important;
         }
-        .htCustomStyles .handsontable td.current {
+        .handsontable td.current {
           background: #bfdbfe !important;
+        }
+        .handsontable .htDropdownMenu {
+          z-index: 9999 !important;
+        }
+        .handsontable td.cursor-pointer {
+          cursor: pointer !important;
+        }
+        .handsontable td.bg-green-50 {
+          background-color: #f0fdf4 !important;
+        }
+        .handsontable td.text-green-700 {
+          color: #15803d !important;
+        }
+        .handsontable td.bg-blue-50 {
+          background-color: #eff6ff !important;
+        }
+        .handsontable td.text-blue-600 {
+          color: #2563eb !important;
+        }
+        .handsontable td.font-medium {
+          font-weight: 500 !important;
         }
       `}</style>
     </div>
